@@ -197,7 +197,7 @@ sellerIsBusiness, searchScore, contentSource
 
 Vinted's bot protection is far friendlier to a home IP than to a datacenter, so the cheapest reliable host
 is the Mac itself. `deploy/` contains launchd definitions for three login services: the watcher (restarts
-on crash), the dashboard on port 3210 bound to all interfaces with a password, and a daily `hunt` at 07:30.
+on crash), the dashboard on port 3210 bound to all interfaces on port 3211 with a password, and a daily `hunt` at 07:30.
 
 ```bash
 bash deploy/install-services.sh          # install and start; logs in ~/Library/Logs/vinted/
