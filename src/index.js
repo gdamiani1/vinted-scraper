@@ -11,7 +11,7 @@ export { toCsv, toNdjson, toJson, formatTable, serialize, writeOutput } from './
 export { CONDITIONS, COLORS, ORDERS, DOMAIN_LOCALES, resolveCondition, resolveColor, resolveOrder, flattenCatalogs, bestMatch, conditionIdFromText } from './lookup.js';
 export { extractBalanced, findObjects, findObjectAfterKey, stripUndefined, unwrapHtmlFlight } from './flight.js';
 export { VintedError, createLogger } from './util.js';
-export { haversineKm, Geocoder, locateItems, resolveNear, parseNear, formatLocation } from './geo.js';
+export { haversineKm, Geocoder, locateItems, resolveNear, parseNear, formatLocation, countryFilter } from './geo.js';
 export { createVisionClient, analyzeListing, VERDICT_SCHEMA } from './vision.js';
 export { loadRules, buyScore, brandTier, parseSize, sizeDesirability, fitsMySize, genderOf, listingAgeDays } from './rules.js';
 export { evaluateListings, prescore, isCandidate } from './buyer.js';

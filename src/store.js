@@ -10,6 +10,7 @@ export class Store {
     this.db = new DatabaseSync(path);
     this.db.exec(`
       PRAGMA journal_mode = WAL;
+      PRAGMA busy_timeout = 8000;
       CREATE TABLE IF NOT EXISTS items (
         id INTEGER PRIMARY KEY,
         search_key TEXT,
