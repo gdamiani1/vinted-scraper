@@ -21,7 +21,7 @@ export function isCandidate(item, rules, { luxuryOnly = true } = {}) {
  *
  * @returns all items; evaluated ones carry `detail`, `verdict`, `buy` (and `triage` when used).
  */
-export async function evaluateListings(items, { scraper, store, vision, rules, max = 30, minUpside, luxuryOnly = true, triage = false, concurrency = 4, comparablesFor, prefilter, logger = scraper.logger } = {}) {
+export async function evaluateListings(items, { scraper, store, vision, rules, max = 30, minUpside, luxuryOnly = true, triage = false, concurrency = 4, comparablesFor, prefilter, prefilterPool, logger = scraper.logger } = {}) {
   const eligible = items.filter((it) => isCandidate(it, rules, { luxuryOnly }));
   logger.info(`[ai] ${eligible.length} of ${items.length} listings pass the cheap filters`);
   const out = new Map(items.map((it) => [it.id, it]));
@@ -32,13 +32,14 @@ export async function evaluateListings(items, { scraper, store, vision, rules, m
     store?.setTriage?.(triaged);
     const upside = (it) => (it.triage.est_resale_eur && it.price ? (it.triage.est_resale_eur - it.price) / it.price : 0);
     const chosen = triaged.filter((it) => it.triage.worth_checking && (minUpside === undefined || upside(it) >= minUpside));
-    ranked = chosen.sort((a, b) => upside(b) - upside(a)).slice(0, max);
+    const pool = prefilter ? (prefilterPool ?? max * 10) : max;
+    ranked = chosen.sort((a, b) => upside(b) - upside(a)).slice(0, pool);
     for (const it of ranked) out.set(it.id, it);
     logger.info(`[ai] triage picked ${triaged.filter((t) => t.triage.worth_checking).length} of ${triaged.length}${minUpside !== undefined ? `, ${chosen.length} with upside ≥ ${Math.round(minUpside * 100)}%` : ''}; photo-checking ${ranked.length}`);
   } else {
-    ranked = [...eligible].sort((a, b) => (b.deal?.score ?? 0) - (a.deal?.score ?? 0) || (a.price ?? 0) - (b.price ?? 0)).slice(0, max);
+    ranked = [...eligible].sort((a, b) => (b.deal?.score ?? 0) - (a.deal?.score ?? 0) || (a.price ?? 0) - (b.price ?? 0)).slice(0, prefilter ? (prefilterPool ?? max * 10) : max);
   }
-  if (prefilter) { const before = ranked.length; ranked = await prefilter(ranked); logger.info(`[ai] ${ranked.length} of ${before} candidates pass the seller filter`); }
+  if (prefilter) { const before = ranked.length; ranked = (await prefilter(ranked)).slice(0, max); logger.info(`[ai] ${ranked.length} of ${before} candidates pass the seller filter (photo-checking up to ${max})`); }
   // Pipeline: one producer fetches item details from Vinted (sequential, throttled) and hands each
   // listing to the vision workers as soon as it is ready, so photo checks start immediately.
   const withDetail = [];
