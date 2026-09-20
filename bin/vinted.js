@@ -36,6 +36,7 @@ Usage:
   vinted watch  [--config file] [filters]       poll saved searches, alert on new/price drops
   vinted init                                   write vinted.config.json with an example
   vinted serve  [--db file] [--port 3210] [--host 0.0.0.0 --password …]   dashboard (password required off-localhost)
+  vinted run    [--config file]                  hosted mode: dashboard + watcher + daily hunt in one process (PORT, DATA_DIR env)
 
 Filters:
   --brand <name|id>        repeatable            --category <name|id>   repeatable
@@ -412,6 +413,63 @@ async function main() {
         ],
       }, null, 2) + '\n');
       process.stdout.write(`wrote ${file}; edit it and run: vinted watch --config ${file}\n`);
+      break;
+    }
+    case 'run': {
+      // One process for a hosted container: the dashboard on $PORT, the watcher loop, and a daily hunt.
+      // DATA_DIR (a mounted volume) holds the SQLite database so it survives redeploys.
+      const dataDir = process.env.DATA_DIR ?? '.';
+      mkdirSync(dataDir, { recursive: true });
+      const cfgPath = v.config ?? (existsSync('vinted.config.json') ? 'vinted.config.json' : 'deploy/railway.config.json');
+      const config = existsSync(cfgPath) ? JSON.parse(readFileSync(cfgPath, 'utf8')) : { searches: [] };
+      const dbPath = join(dataDir, 'vinted.db');
+      const store = new Store(dbPath);
+      scraper.store = store; scraper.geocoder.store = store;
+      if (config.domain && !v.domain) { scraper.client.baseUrl = `https://www.vinted.${config.domain}`; scraper.client.domain = config.domain; scraper.baseUrl = scraper.client.baseUrl; }
+      const port = intOpt(v.port ?? process.env.PORT, 'port', { max: 65535 }) ?? 3210;
+      const password = v.password ?? process.env.DASHBOARD_PASSWORD;
+      if (!password) fail('run needs DASHBOARD_PASSWORD (the dashboard is exposed to the internet in this mode)');
+      const server = createDashboard({ store, domain: config.domain ?? v.domain ?? 'hr', logger, password, rules });
+      server.listen(port, '0.0.0.0', () => logger.info(`dashboard listening on ${port} (db: ${dbPath})`));
+      // daily hunt inside the same process (Railway volumes cannot be shared between services)
+      const huntAt = (config.huntAt ?? '07:30').split(':').map(Number);
+      const runHunt = async () => {
+        if (!process.env.OPENROUTER_API_KEY && !process.env.VISION_API_KEY) return logger.warn('hunt skipped: no vision API key');
+        const tierSel = config.huntTier ?? 'all';
+        const brands = [...new Set(tierSel === 'all' ? [...rules.brands.tier1, ...rules.brands.tier2, ...(rules.brands.tier3 ?? [])] : rules.brands[`tier${tierSel}`] ?? rules.brands.tier1)].filter((x) => !/ x$/.test(x));
+        logger.info(`[hunt] ${brands.length} brands × ${config.huntPages ?? 2} pages`);
+        const all = new Map();
+        for (const brand of brands) {
+          try { const { items } = await scraper.search({ brand, order: 'newest', priceFrom: priceFloor(brandTierOf(brand), rules) }, { pages: config.huntPages ?? 2 }); for (const it of items) all.set(it.id, it); }
+          catch (e) { logger.warn(`[hunt] ${brand}: ${e.message}`); }
+        }
+        let items = [...all.values()];
+        store.recordSeen('hunt:all', items);
+        items = await evaluateListings(items, { scraper, store, vision: vision(config.ai?.model), rules, max: config.huntMax ?? 120, minUpside: config.huntMinUpside ?? 1, luxuryOnly: true, triage: true, concurrency: 6 });
+        const strong = items.filter((i) => i.buy && i.buy.score >= (config.ai?.minBuy ?? 50)).sort((a, b) => b.buy.score - a.buy.score);
+        store.setBuyScores(items.filter((i) => i.buy));
+        logger.info(`[hunt] done: ${strong.length} strong buys`);
+        if (strong.length) await notify({ type: 'buy', search: 'daily hunt', items: strong.slice(0, 15) });
+      };
+      const tg = config.telegram ?? {};
+      const telegram = { token: tg.token || process.env.TELEGRAM_BOT_TOKEN, chatId: tg.chatId || process.env.TELEGRAM_CHAT_ID };
+      const notify = createNotifier({ webhook: config.webhook || process.env.WEBHOOK_URL, mac: false, telegram, telegramMinScore: tg.minScore ?? 50, logger });
+      const scheduleHunt = () => {
+        const now = new Date(); const next = new Date(now); next.setHours(huntAt[0], huntAt[1] ?? 0, 0, 0); if (next <= now) next.setDate(next.getDate() + 1);
+        logger.info(`[hunt] next run at ${next.toISOString()}`);
+        setTimeout(() => runHunt().catch((e) => logger.error(`[hunt] ${e.message}`)).finally(scheduleHunt), next - now);
+      };
+      if (config.huntAt !== false) scheduleHunt();
+      if (process.env.HUNT_ON_START === '1') runHunt().catch((e) => logger.error(`[hunt] ${e.message}`));
+      const aiCfg = config.ai ?? {};
+      const aiOn = aiCfg.enabled && (process.env.OPENROUTER_API_KEY || process.env.VISION_API_KEY);
+      const ai = aiOn ? { vision: vision(aiCfg.model), rules, max: aiCfg.maxPerRun ?? 30, luxuryOnly: !aiCfg.allBrands, minBuy: aiCfg.minBuy ?? 50 } : undefined;
+      const near = config.near ? await scraper.near(config.near, { radiusKm: config.radiusKm ?? 50, strict: config.strictLocation ?? false }).catch((e) => { logger.warn(`location filter off: ${e.message}`); return undefined; }) : undefined;
+      const ac = new AbortController();
+      for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { logger.info('stopping…'); ac.abort(); server.close(); setTimeout(() => process.exit(0), 2000).unref(); });
+      logger.info(`watching ${config.searches?.length ?? 0} search(es) every ${config.intervalSec ?? 120}s on ${scraper.baseUrl}${ai ? ', AI on' : ''}`);
+      await watch({ scraper, store, searches: config.searches ?? [], notify, intervalSec: config.intervalSec ?? 120, pages: config.pages ?? 1, minScore: config.minScore ?? 0, near, ai, recheck: { everySec: 3600, minBuy: ai ? ai.minBuy : 50, limit: 60 }, signal: ac.signal, logger });
+      store.close();
       break;
     }
     case 'serve': {

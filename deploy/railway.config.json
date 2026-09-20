@@ -1,0 +1,269 @@
+{
+  "domain": "hr",
+  "intervalSec": 120,
+  "db": "vinted.db",
+  "webhook": "",
+  "mac": false,
+  "minScore": 0,
+  "pages": 2,
+  "searches": [
+    {
+      "name": "Nike Air Max under 40",
+      "query": "nike air max",
+      "brand": "Nike",
+      "priceTo": 40,
+      "condition": [
+        "new",
+        "very good"
+      ],
+      "order": "newest",
+      "include": [
+        "air ?max"
+      ],
+      "exclude": [
+        "majica|tee|shirt|jersey"
+      ]
+    },
+    {
+      "name": "Levis 501 W32",
+      "query": "levis 501 w32",
+      "category": "jeans",
+      "priceTo": 25
+    },
+    {
+      "name": "Chanel bags",
+      "query": "chanel",
+      "brand": "Chanel",
+      "category": "bags",
+      "order": "newest",
+      "near": false,
+      "exclude": [
+        "parf|perfume|dupe|inspired|no 5|sample"
+      ]
+    },
+    {
+      "name": "Louis Vuitton bags",
+      "query": "louis vuitton",
+      "brand": "Louis Vuitton",
+      "category": "bags",
+      "order": "newest",
+      "near": false,
+      "exclude": [
+        "parf|perfume|dupe|inspired|sample"
+      ]
+    },
+    {
+      "name": "Prada / Miu Miu",
+      "query": "prada",
+      "brand": [
+        "Prada",
+        "Miu Miu"
+      ],
+      "order": "newest",
+      "near": false,
+      "priceFrom": 60,
+      "exclude": [
+        "parf|perfume|dupe|inspired|sample"
+      ]
+    },
+    {
+      "name": "Loewe / Bottega",
+      "query": "bag",
+      "brand": [
+        "Loewe",
+        "Bottega Veneta"
+      ],
+      "order": "newest",
+      "near": false,
+      "priceFrom": 80
+    },
+    {
+      "name": "Luxury shoes",
+      "query": "shoes",
+      "brand": [
+        "Chanel",
+        "Prada",
+        "Gucci",
+        "Saint Laurent",
+        "Balenciaga"
+      ],
+      "category": "shoes",
+      "order": "newest",
+      "near": false,
+      "priceFrom": 60
+    },
+    {
+      "name": "Men's luxury shoes",
+      "brand": [
+        "Chanel",
+        "Prada",
+        "Gucci",
+        "Saint Laurent",
+        "Balenciaga",
+        "Bottega Veneta",
+        "Loewe",
+        "Louis Vuitton",
+        "Dior",
+        "Maison Margiela",
+        "Rick Owens",
+        "Moncler",
+        "Stone Island",
+        "Acne Studios",
+        "Our Legacy",
+        "Lemaire",
+        "Jil Sander",
+        "Dries Van Noten",
+        "Comme des Garçons",
+        "Yohji Yamamoto"
+      ],
+      "category": 1231,
+      "order": "newest",
+      "near": false,
+      "priceFrom": 60
+    },
+    {
+      "name": "Men's luxury outerwear",
+      "brand": [
+        "Chanel",
+        "Prada",
+        "Gucci",
+        "Saint Laurent",
+        "Balenciaga",
+        "Bottega Veneta",
+        "Loewe",
+        "Louis Vuitton",
+        "Dior",
+        "Maison Margiela",
+        "Rick Owens",
+        "Moncler",
+        "Stone Island",
+        "Acne Studios",
+        "Our Legacy",
+        "Lemaire",
+        "Jil Sander",
+        "Dries Van Noten",
+        "Comme des Garçons",
+        "Yohji Yamamoto"
+      ],
+      "category": 1206,
+      "order": "newest",
+      "near": false,
+      "priceFrom": 60
+    },
+    {
+      "name": "Men's luxury knitwear",
+      "brand": [
+        "Chanel",
+        "Prada",
+        "Gucci",
+        "Saint Laurent",
+        "Balenciaga",
+        "Bottega Veneta",
+        "Loewe",
+        "Louis Vuitton",
+        "Dior",
+        "Maison Margiela",
+        "Rick Owens",
+        "Moncler",
+        "Stone Island",
+        "Acne Studios",
+        "Our Legacy",
+        "Lemaire",
+        "Jil Sander",
+        "Dries Van Noten",
+        "Comme des Garçons",
+        "Yohji Yamamoto"
+      ],
+      "category": 79,
+      "order": "newest",
+      "near": false,
+      "priceFrom": 60
+    },
+    {
+      "name": "Men's luxury bags",
+      "brand": [
+        "Chanel",
+        "Prada",
+        "Gucci",
+        "Saint Laurent",
+        "Balenciaga",
+        "Bottega Veneta",
+        "Loewe",
+        "Louis Vuitton",
+        "Dior",
+        "Maison Margiela",
+        "Rick Owens",
+        "Moncler",
+        "Stone Island",
+        "Acne Studios",
+        "Our Legacy",
+        "Lemaire",
+        "Jil Sander",
+        "Dries Van Noten",
+        "Comme des Garçons",
+        "Yohji Yamamoto"
+      ],
+      "category": 94,
+      "order": "newest",
+      "near": false,
+      "priceFrom": 60
+    },
+    {
+      "name": "Men's designer trousers",
+      "brand": [
+        "Chanel",
+        "Prada",
+        "Gucci",
+        "Saint Laurent",
+        "Balenciaga",
+        "Bottega Veneta",
+        "Loewe",
+        "Louis Vuitton",
+        "Dior",
+        "Maison Margiela",
+        "Rick Owens",
+        "Moncler",
+        "Stone Island",
+        "Acne Studios",
+        "Our Legacy",
+        "Lemaire",
+        "Jil Sander",
+        "Dries Van Noten",
+        "Comme des Garçons",
+        "Yohji Yamamoto"
+      ],
+      "category": [
+        34,
+        257
+      ],
+      "order": "newest",
+      "near": false,
+      "priceFrom": 60
+    }
+  ],
+  "near": "Zagreb",
+  "radiusKm": 50,
+  "strictLocation": false,
+  "telegram": {
+    "token": "",
+    "chatId": "",
+    "minScore": 50
+  },
+  "ai": {
+    "enabled": true,
+    "model": "qwen/qwen3.8-flash",
+    "maxPerRun": 30,
+    "minBuy": 50,
+    "allBrands": false
+  },
+  "rules": "rules.json",
+  "recheck": {
+    "everySec": 3600,
+    "minBuy": 50,
+    "limit": 60
+  },
+  "huntAt": "07:30",
+  "huntPages": 2,
+  "huntMax": 120,
+  "huntMinUpside": 1
+}
