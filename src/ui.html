@@ -78,6 +78,7 @@
 <main class="wrap"><div class="grid" id="grid"></div><div class="empty" id="empty" hidden>Nothing here yet. Run the watcher or a search with <code>--db</code>.</div></main>
 <script>
   const $ = (id) => document.getElementById(id);
+  const api = (path) => fetch(new URL(path, location.origin)); // origin only: works even if the page URL carried credentials
   const fmt = (n, c) => n === undefined || n === null ? '?' : `${Number(n).toFixed(2)} ${c ?? ''}`.trim();
   const ago = (iso) => { const s = (Date.now() - new Date(iso)) / 1000; if (s < 90) return 'just now'; if (s < 5400) return `${Math.round(s / 60)} min ago`; if (s < 172800) return `${Math.round(s / 3600)} h ago`; return `${Math.round(s / 86400)} d ago`; };
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -88,7 +89,7 @@
   if (state.mySize) $('mySize').checked = true;
 
   async function loadSearches() {
-    const { searches } = await (await fetch('/api/searches')).json();
+    const { searches } = await (await api('/api/searches')).json();
     const sel = $('search'); const cur = sel.value;
     sel.innerHTML = '<option value="">All searches</option>' + searches.map((s) => `<option value="${esc(s.key)}">${esc(s.key)} (${s.n})</option>`).join('');
     sel.value = cur;
@@ -120,16 +121,16 @@
     state.analyzed = $('analyzed').checked; if (state.analyzed) p.set('analyzed', '1');
     state.mySize = $('mySize').checked; if (state.mySize) p.set('mySize', '1');
     try { localStorage.setItem('vw-filters', JSON.stringify(state)); } catch {}
-    const { items } = await (await fetch(state.similarTo ? '/api/similar?id=' + state.similarTo : '/api/items?' + p)).json();
+    const { items } = await (await api(state.similarTo ? '/api/similar?id=' + state.similarTo : '/api/items?' + p)).json();
     $('grid').innerHTML = items.map(card).join('');
     $('empty').hidden = items.length > 0;
-    const st = await (await fetch('/api/stats')).json();
+    const st = await (await api('/api/stats')).json();
     $('stat').textContent = `${state.similarTo ? 'similar to #' + state.similarTo + ' · ' : ''}${items.length} shown · ${st.items} tracked · ${st.verdicts} analyzed · ${new Date().toLocaleTimeString()}`;
   }
   for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location', 'analyzed', 'mySize', 'category', 'style', 'color', 'material']) $(k).addEventListener('change', () => { state.similarTo = undefined; load(); });
   let qTimer; $('q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => { state.similarTo = undefined; load(); }, 350); });
   async function loadTaxonomy() {
-    const t = await (await fetch('/api/taxonomy')).json();
+    const t = await (await api('/api/taxonomy')).json();
     for (const [g, id] of [['category', 'category'], ['style', 'style'], ['color', 'color'], ['material', 'material']]) {
       const sel = $(id); const cur = sel.value;
       sel.innerHTML = '<option value="">Any</option>' + (t[g] || []).map((r) => `<option value="${esc(r.label)}">${esc(r.label)} (${r.n})</option>`).join('');
