@@ -432,7 +432,7 @@ async function main() {
       const server = createDashboard({ store, domain: config.domain ?? v.domain ?? 'hr', logger, password, rules });
       server.listen(port, '0.0.0.0', () => logger.info(`dashboard listening on ${port} (db: ${dbPath})`));
       // daily hunt inside the same process (Railway volumes cannot be shared between services)
-      const huntAt = (config.huntAt ?? '07:30').split(':').map(Number);
+      const huntAt = config.huntAt === false ? null : String(config.huntAt ?? '07:30').split(':').map(Number);
       const runHunt = async () => {
         if (!process.env.OPENROUTER_API_KEY && !process.env.VISION_API_KEY) return logger.warn('hunt skipped: no vision API key');
         const tierSel = config.huntTier ?? 'all';
@@ -459,7 +459,7 @@ async function main() {
         logger.info(`[hunt] next run at ${next.toISOString()}`);
         setTimeout(() => runHunt().catch((e) => logger.error(`[hunt] ${e.message}`)).finally(scheduleHunt), next - now);
       };
-      if (config.huntAt !== false) scheduleHunt();
+      if (huntAt) scheduleHunt();
       if (process.env.HUNT_ON_START === '1') runHunt().catch((e) => logger.error(`[hunt] ${e.message}`));
       const aiCfg = config.ai ?? {};
       const aiOn = aiCfg.enabled && (process.env.OPENROUTER_API_KEY || process.env.VISION_API_KEY);
