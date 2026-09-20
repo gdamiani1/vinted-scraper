@@ -29,7 +29,7 @@
   label { color: var(--muted); font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
   .stat { margin-left: auto; color: var(--muted); font-size: 13px; }
   main { padding: 18px 0 60px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; transition: transform .12s ease; }
   .card:hover { transform: translateY(-2px); }
   .photo { position: relative; aspect-ratio: 3/4; background: var(--chip); }
@@ -49,8 +49,8 @@
   .chip { background: var(--chip); color: var(--muted); font-size: 12px; padding: 2px 8px; border-radius: 999px; }
   .chip.loc { color: var(--good); }
   .meta { color: var(--muted); font-size: 12px; margin-top: auto; padding-top: 6px; display: flex; justify-content: space-between; gap: 8px; }
-  .actions { display: flex; gap: 8px; padding: 0 13px 13px; }
-  .actions a { flex: 1; text-align: center; text-decoration: none; font-size: 13px; padding: 7px 8px; border-radius: 10px; border: 1px solid var(--line); color: var(--ink); }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 13px 13px; }
+  .actions a { flex: 1 1 auto; min-width: 0; text-align: center; text-decoration: none; font-size: 12px; padding: 6px 6px; border-radius: 9px; border: 1px solid var(--line); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .actions a.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
   .empty { color: var(--muted); text-align: center; padding: 60px 0; }
   .reasons { font-size: 12px; color: var(--muted); }
@@ -59,7 +59,7 @@
   .tagform .row { grid-column: 1 / -1; display: flex; gap: 6px; }
   .tagform button { flex: 1; font: inherit; font-size: 12px; padding: 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
   .tagform button.ghost { background: transparent; color: var(--ink); }
-  .tagged { color: var(--good); }
+  .tagged { color: var(--good); border-color: var(--good) !important; }
 </style>
 </head>
 <body>
@@ -119,7 +119,7 @@
         ${it.verdict ? `<div class="verdict"><span class="risk-${esc(it.verdict.authenticity_risk)}">auth ${esc(it.verdict.authenticity_risk)}</span> · ${esc(it.verdict.condition_grade ?? '')}${it.verdict.line_or_model ? ' · ' + esc(it.verdict.line_or_model) : ''}${it.buy?.margin !== undefined ? ` · margin ${it.buy.margin >= 0 ? '+' : ''}${it.buy.margin}` : ''}<br>${esc(it.verdict.summary ?? '')}</div>` : (it.deal?.reasons?.length ? `<div class="reasons">${esc(it.deal.reasons[0])}</div>` : '')}
         <div class="meta"><span>${it.location?.sellerLogin ? '@' + esc(it.location.sellerLogin) : 'seller ' + esc(it.sellerId)}</span><span>${ago(it.firstSeen)}</span></div>
       </div>
-      <div class="actions"><a class="primary" href="${esc(it.url)}" target="_blank" rel="noopener">Open</a>${it.messageUrl ? `<a href="${esc(it.messageUrl)}" target="_blank" rel="noopener">Seller</a>` : ''}<a href="#" onclick="showSimilar(${it.id});return false" title="more like this">Similar</a><a href="#" class="${it.labels?.human ? 'tagged' : ''}" onclick="toggleTag(this, ${it.id});return false" title="correct the labels">${it.labels?.human ? '✓ Tagged' : 'Tag'}</a></div>
+      <div class="actions"><a class="primary" href="${esc(it.url)}" target="_blank" rel="noopener">Open</a>${it.messageUrl ? `<a href="${esc(it.messageUrl)}" target="_blank" rel="noopener">Seller</a>` : ''}<a href="#" onclick="showSimilar(${it.id});return false" title="more like this">Similar</a><a href="#" class="${it.labels?.human ? 'tagged' : ''}" onclick="toggleTag(this, ${it.id});return false" title="correct the labels">${it.labels?.human ? '✓ Tags' : 'Tag'}</a></div>
       <div class="tagform" id="tag-${it.id}" hidden></div>
     </article>`;
   }
