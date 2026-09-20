@@ -112,6 +112,7 @@ export function labelEmbedding(vec, groups, { topStyles = 3, temperature = 100, 
     const best = probs[0];
     out[group] = best.p >= (minConfidence[group] ?? 0) ? best.label : null;
     if (group === 'style' && best.label === 'contemporary') out[group] = null; // the catch-all is not a style
+    if (group === 'material' && best.label === 'patent leather' && best.p < 0.5) out[group] = 'leather'; // CLIP over-reads shine; only very confident calls stay patent
     out[`${group}Confidence`] = Number(best.p.toFixed(3));
     if (group === 'style') out.styles = probs.slice(0, topStyles).map((x) => ({ label: x.label, p: Number(x.p.toFixed(3)) }));
   }
