@@ -4,7 +4,7 @@ import { parseItemFlight, parseItemId } from './item.js';
 import { normalizeUser } from './users.js';
 import { resolveCondition, resolveColor, flattenCatalogs, bestMatch } from './lookup.js';
 import { createLogger, VintedError } from './util.js';
-import { Geocoder, locateItems, resolveNear } from './geo.js';
+import { Geocoder, locateItems, resolveNear, countryFilter } from './geo.js';
 import { findObjectAfterKey, unwrapHtmlFlight } from './flight.js';
 import { readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -95,7 +95,8 @@ export class VintedScraper {
     return locateItems(items, { scraper: this, store: this.store, geocoder: this.geocoder, near, ...opts });
   }
 
-  async search(params, { pages = 1, limit, stopWhen, enrich = false, seller = false, concurrency = 2, near } = {}) {
+  async search(params, { pages = 1, limit, stopWhen, enrich = false, seller = false, concurrency = 2, near, sellerCountry } = {}) {
+    near ??= sellerCountry ? countryFilter(sellerCountry) : undefined;
     const resolved = await this.resolveParams(params);
     const keep = titleFilter(resolved.include, resolved.exclude);
     delete resolved.include; delete resolved.exclude;
@@ -113,7 +114,7 @@ export class VintedScraper {
       const before = items.length;
       items = await this.locate(items, near);
       const hidden = items.filter((i) => i.location?.status === 'unknown').length;
-      this.logger.info(`location: ${items.length} of ${before} listings kept within ${near.radiusKm} km of ${near.name}${hidden ? ` (${hidden} with city hidden)` : ''}`);
+      this.logger.info(near.countryOnly ? `sellers: ${items.length} of ${before} listings from ${near.countryCode}` : `location: ${items.length} of ${before} listings kept within ${near.radiusKm} km of ${near.name}${hidden ? ` (${hidden} with city hidden)` : ''}`);
     }
     if (limit) items = items.slice(0, limit);
     if (enrich || seller) items = await this.enrich(items, { details: enrich, seller, concurrency });

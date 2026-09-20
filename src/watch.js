@@ -2,6 +2,7 @@ import { sleep, jitter } from './util.js';
 import { scoreDeals } from './deals.js';
 import { evaluateListings } from './buyer.js';
 import { embedNewItems, broadRecheck } from './enrich.js';
+import { countryFilter } from './geo.js';
 
 /** Stable key so the same saved search maps to the same rows in the store across restarts. */
 export function searchKey(search) {
@@ -20,7 +21,7 @@ export function searchKey(search) {
  * @param {object[]} opts.searches saved searches (FriendlyParams + optional name/pages/minScore)
  * @param {(event: object) => Promise<void>} opts.notify
  */
-export async function watch({ scraper, store, searches, notify, intervalSec = 120, pages = 1, minScore = 0, once = false, notifyFirstRun = false, near, ai, recheck = { everySec: 3600, minBuy: 50, limit: 60 }, embedder, rules, broadRecheckAt = '02:30', signal, logger = scraper.logger }) {
+export async function watch({ scraper, store, searches, notify, intervalSec = 120, pages = 1, minScore = 0, once = false, notifyFirstRun = false, near, ai, recheck = { everySec: 3600, minBuy: 50, limit: 60 }, embedder, rules, broadRecheckAt = '02:30', sellerCountry, signal, logger = scraper.logger }) {
   let lastBroadDay = '';
   const state = new Map(searches.map((s) => [searchKey(s), { firstRun: true, failures: 0, disabled: false }]));
   let round = 0;
@@ -34,7 +35,8 @@ export async function watch({ scraper, store, searches, notify, intervalSec = 12
       if (st.disabled) continue;
       try {
         const { near: _n, radiusKm: _r, strictLocation: _s, pages: _p, minScore: _m, name: _name, ...params } = search;
-        const searchNear = search.near === false ? undefined : search.near ? await scraper.near(search.near, { radiusKm: search.radiusKm ?? near?.radiusKm ?? 50, strict: search.strictLocation ?? near?.strict ?? false }) : near;
+        let searchNear = search.near === false ? undefined : search.near ? await scraper.near(search.near, { radiusKm: search.radiusKm ?? near?.radiusKm ?? 50, strict: search.strictLocation ?? near?.strict ?? false }) : near;
+        if (!searchNear && sellerCountry) searchNear = countryFilter(sellerCountry);
         const { items } = await scraper.search({ order: 'newest', ...params }, { pages: search.pages ?? pages, near: searchNear });
         const { newItems, priceDrops } = store.recordSeen(key, items);
         store.setScores(scoreDeals(items, { baseline: store.baseline() }));

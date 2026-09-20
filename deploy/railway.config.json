@@ -1,5 +1,5 @@
 {
-  "domain": "hr",
+  "domain": "at",
   "intervalSec": 120,
   "db": "vinted.db",
   "webhook": "",
@@ -36,7 +36,6 @@
       "brand": "Chanel",
       "category": "bags",
       "order": "newest",
-      "near": false,
       "exclude": [
         "parf|perfume|dupe|inspired|no 5|sample"
       ]
@@ -47,7 +46,6 @@
       "brand": "Louis Vuitton",
       "category": "bags",
       "order": "newest",
-      "near": false,
       "exclude": [
         "parf|perfume|dupe|inspired|sample"
       ]
@@ -60,7 +58,6 @@
         "Miu Miu"
       ],
       "order": "newest",
-      "near": false,
       "priceFrom": 60,
       "exclude": [
         "parf|perfume|dupe|inspired|sample"
@@ -74,7 +71,6 @@
         "Bottega Veneta"
       ],
       "order": "newest",
-      "near": false,
       "priceFrom": 80
     },
     {
@@ -89,7 +85,6 @@
       ],
       "category": "shoes",
       "order": "newest",
-      "near": false,
       "priceFrom": 60
     },
     {
@@ -118,7 +113,6 @@
       ],
       "category": 1231,
       "order": "newest",
-      "near": false,
       "priceFrom": 60
     },
     {
@@ -147,7 +141,6 @@
       ],
       "category": 1206,
       "order": "newest",
-      "near": false,
       "priceFrom": 60
     },
     {
@@ -176,7 +169,6 @@
       ],
       "category": 79,
       "order": "newest",
-      "near": false,
       "priceFrom": 60
     },
     {
@@ -205,7 +197,6 @@
       ],
       "category": 94,
       "order": "newest",
-      "near": false,
       "priceFrom": 60
     },
     {
@@ -237,11 +228,10 @@
         257
       ],
       "order": "newest",
-      "near": false,
       "priceFrom": 60
     }
   ],
-  "near": "Zagreb",
+  "near": false,
   "radiusKm": 50,
   "strictLocation": false,
   "telegram": {
@@ -265,5 +255,6 @@
   "huntAt": "07:30",
   "huntPages": 2,
   "huntMax": 120,
-  "huntMinUpside": 1
+  "huntMinUpside": 1,
+  "sellerCountry": "AT"
 }

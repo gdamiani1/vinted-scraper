@@ -21,7 +21,7 @@ export function isCandidate(item, rules, { luxuryOnly = true } = {}) {
  *
  * @returns all items; evaluated ones carry `detail`, `verdict`, `buy` (and `triage` when used).
  */
-export async function evaluateListings(items, { scraper, store, vision, rules, max = 30, minUpside, luxuryOnly = true, triage = false, concurrency = 4, comparablesFor, logger = scraper.logger } = {}) {
+export async function evaluateListings(items, { scraper, store, vision, rules, max = 30, minUpside, luxuryOnly = true, triage = false, concurrency = 4, comparablesFor, prefilter, logger = scraper.logger } = {}) {
   const eligible = items.filter((it) => isCandidate(it, rules, { luxuryOnly }));
   logger.info(`[ai] ${eligible.length} of ${items.length} listings pass the cheap filters`);
   const out = new Map(items.map((it) => [it.id, it]));
@@ -38,6 +38,7 @@ export async function evaluateListings(items, { scraper, store, vision, rules, m
   } else {
     ranked = [...eligible].sort((a, b) => (b.deal?.score ?? 0) - (a.deal?.score ?? 0) || (a.price ?? 0) - (b.price ?? 0)).slice(0, max);
   }
+  if (prefilter) { const before = ranked.length; ranked = await prefilter(ranked); logger.info(`[ai] ${ranked.length} of ${before} candidates pass the seller filter`); }
   // Pipeline: one producer fetches item details from Vinted (sequential, throttled) and hands each
   // listing to the vision workers as soon as it is ready, so photo checks start immediately.
   const withDetail = [];

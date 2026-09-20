@@ -60,6 +60,14 @@
   .tagform button { flex: 1; font: inherit; font-size: 12px; padding: 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
   .tagform button.ghost { background: transparent; color: var(--ink); }
   .tagged { color: var(--good); border-color: var(--good) !important; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px; margin: 16px 0; box-shadow: var(--shadow); }
+  .panel h2 { font-size: 15px; margin: 0 0 6px; }
+  .panel p { margin: 4px 0; font-size: 13px; color: var(--muted); }
+  .panel table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 8px; }
+  .panel th, .panel td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .panel th { color: var(--muted); font-weight: 500; }
+  .up { color: var(--good); } .down { color: #dc2626; } .flood { color: var(--warn); }
+  .linkbtn { background: none; border: 1px solid var(--line); color: var(--ink); border-radius: 10px; padding: 7px 10px; font: inherit; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -76,13 +84,15 @@
   <label>Min buy <input id="minBuy" type="number" min="0" max="100" step="5" placeholder="any"></label>
   <label><input id="analyzed" type="checkbox"> Analyzed only</label>
   <label><input id="mySize" type="checkbox"> My size</label>
+  <label title="only listings whose seller profile says Austria (unknown sellers are hidden)"><input id="atOnly" type="checkbox" checked> Austrian sellers</label>
   <label>Max price <input id="maxPrice" type="number" min="0" step="5" placeholder="any"></label>
   <label>Location <select id="location"><option value="">Any</option><option value="within">Within radius</option><option value="unknown">City hidden</option></select></label>
   <label><input id="auto" type="checkbox" checked> Auto refresh</label>
+  <button class="linkbtn" id="trendsBtn" onclick="toggleTrends()">Trends</button>
   <span class="stat" id="tags" style="margin-left:auto"></span>
   <span class="stat" id="stat" style="margin-left:12px"></span>
 </div></header>
-<main class="wrap"><div class="grid" id="grid"></div><div class="empty" id="empty" hidden>Nothing here yet. Run the watcher or a search with <code>--db</code>.</div></main>
+<main class="wrap"><div class="panel" id="trends" hidden></div><div class="grid" id="grid"></div><div class="empty" id="empty" hidden>Nothing here yet. Run the watcher or a search with <code>--db</code>.</div></main>
 <script>
   const $ = (id) => document.getElementById(id);
   const api = (path) => fetch(new URL(path, location.origin)); // origin only: works even if the page URL carried credentials
@@ -95,6 +105,7 @@
   for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location', 'q', 'category', 'style', 'color', 'material']) if (state[k] !== undefined) $(k).value = state[k];
   if (state.analyzed) $('analyzed').checked = true;
   if (state.mySize) $('mySize').checked = true;
+  if (state.atOnly === false) $('atOnly').checked = false;
 
   async function loadSearches() {
     const { searches } = await (await api('/api/searches')).json();
@@ -129,6 +140,7 @@
     if (state.similarTo) { p.set('similar', state.similarTo); }
     state.analyzed = $('analyzed').checked; if (state.analyzed) p.set('analyzed', '1');
     state.mySize = $('mySize').checked; if (state.mySize) p.set('mySize', '1');
+    state.atOnly = $('atOnly').checked; if (state.atOnly) p.set('country', 'AT');
     try { localStorage.setItem('vw-filters', JSON.stringify(state)); } catch {}
     const { items } = await (await api(state.similarTo ? '/api/similar?id=' + state.similarTo : '/api/items?' + p)).json();
     LAST = items;
@@ -137,7 +149,7 @@
     const st = await (await api('/api/stats')).json();
     $('stat').textContent = `${state.similarTo ? 'similar to #' + state.similarTo + ' · ' : ''}${items.length} shown · ${st.items} tracked · ${st.verdicts} analyzed · ${new Date().toLocaleTimeString()}`;
   }
-  for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location', 'analyzed', 'mySize', 'category', 'style', 'color', 'material']) $(k).addEventListener('change', () => { state.similarTo = undefined; load(); });
+  for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location', 'analyzed', 'mySize', 'atOnly', 'category', 'style', 'color', 'material']) $(k).addEventListener('change', () => { state.similarTo = undefined; load(); });
   let qTimer; $('q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => { state.similarTo = undefined; load(); }, 350); });
   async function loadTaxonomy() {
     const t = await (await api('/api/taxonomy')).json();
@@ -174,6 +186,19 @@
     $('tags').textContent = n ? `${n} tags${agr ? ' · auto agrees: ' + agr : ''}` : 'no tags yet — use Tag on a card to correct labels';
   }
   loadTags();
+  window.toggleTrends = async () => {
+    const box = $('trends');
+    if (!box.hidden) { box.hidden = true; return; }
+    box.hidden = false; box.innerHTML = '<p>Loading trends…</p>';
+    const t = await (await api('/api/trends?days=28')).json();
+    const pctf = (x) => x === undefined || x === null ? '–' : (x >= 0 ? '+' : '') + Math.round(x * 100) + '%';
+    const cls = (l) => l === 'rising' ? 'up' : l === 'cooling' ? 'down' : l === 'flooding' ? 'flood' : '';
+    const usable = t.trends.filter((x) => x.label !== 'insufficient data');
+    box.innerHTML = `<h2>Trends · ${t.historyDays} day${t.historyDays === 1 ? '' : 's'} of history (${t.from || '–'} → ${t.to || '–'})</h2>` +
+      t.summary.map((l) => `<p>${esc(l)}</p>`).join('') +
+      (usable.length ? `<table><tr><th>segment</th><th>label</th><th>listings</th><th>share</th><th>Δ share</th><th>median price</th><th>Δ price</th><th>sell-through</th><th>Δ</th><th>share in 7d</th></tr>` +
+        usable.slice(0, 30).map((x) => `<tr><td>${esc(x.group.replace('2', ''))}: <b>${esc(x.key)}</b></td><td class="${cls(x.label)}">${x.label}</td><td>${x.total}</td><td>${Math.round((x.recent.share || 0) * 100)}%</td><td class="${(x.shareChange || 0) >= 0 ? 'up' : 'down'}">${pctf(x.shareChange)}</td><td>${x.recent.price ?? '–'}</td><td class="${(x.priceChange || 0) >= 0 ? 'up' : 'down'}">${pctf(x.priceChange)}</td><td>${x.recent.sellThrough === undefined ? '–' : Math.round(x.recent.sellThrough * 100) + '%'}</td><td>${x.sellThroughChange === undefined ? '–' : (x.sellThroughChange >= 0 ? '+' : '') + Math.round(x.sellThroughChange * 100) + ' pts'}</td><td>${x.forecast?.shareNext7d === undefined ? '–' : Math.round(x.forecast.shareNext7d * 100) + '%'}</td></tr>`).join('') + '</table>' : '<p>Segments will appear here once there are two comparable windows of listings (about two weeks). The watcher is collecting.</p>');
+  };
   loadTaxonomy();
   loadSearches().then(load);
   setInterval(() => { if ($('auto').checked && !state.similarTo && !$('q').value) { loadSearches(); loadTaxonomy(); load(); } }, 45000);

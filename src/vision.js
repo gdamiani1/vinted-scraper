@@ -132,6 +132,12 @@ export function createVisionClient({
   return {
     model,
     baseUrl,
+    /** Plain text completion (used for trend commentary). */
+    async chat(system, user, { maxTokens = 900 } = {}) {
+      const data = await request({ model, temperature: 0.3, max_tokens: maxTokens, reasoning: { enabled: false, exclude: true }, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }, { timeout: 120000 });
+      const c = data.choices?.[0]?.message?.content;
+      return typeof c === 'string' ? c.trim() : '';
+    },
     /**
      * Text-only screening of many listings in one call (no photos): which are plausibly genuine
      * luxury items priced below resale and worth a photo check. ~30 tokens per listing.

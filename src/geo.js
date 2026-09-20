@@ -61,6 +61,11 @@ export class Geocoder {
 }
 
 /** Turns `--near` input plus radius into a resolved reference point. */
+/** A country-only filter: same shape as a resolved `near`, no distance involved. */
+export function countryFilter(code, { strict = false } = {}) {
+  return { countryCode: String(code).toUpperCase(), radiusKm: Infinity, name: String(code).toUpperCase(), strict, countryOnly: true };
+}
+
 export async function resolveNear(input, { geocoder, radiusKm = 50, strict = false, countryCode } = {}) {
   const parsed = parseNear(input);
   let point;
@@ -102,6 +107,7 @@ export async function locateItems(items, { scraper, store, geocoder, near, retur
     const loc = { countryCode: p.countryCode, city: p.city || undefined, sellerLogin: p.login, status: 'unknown' };
     if (p.error) loc.status = 'unknown';
     else if (near.countryCode && p.countryCode && p.countryCode !== near.countryCode) loc.status = 'other_country';
+    else if (near.countryOnly) loc.status = p.countryCode ? 'within' : 'unknown';
     else if (loc.city) {
       const pt = await geocoder.geocode(loc.city, p.countryCode);
       if (pt) {
@@ -117,6 +123,7 @@ export async function locateItems(items, { scraper, store, geocoder, near, retur
 
 export function formatLocation(loc) {
   if (!loc) return '';
+  if (loc.status === 'within' && loc.distanceKm === undefined) return `${loc.countryCode}${loc.city ? ` · ${loc.city}` : ''}`;
   if (loc.status === 'within' || loc.status === 'outside') return `${loc.city} (${loc.distanceKm} km)`;
   if (loc.status === 'unknown') return `${loc.countryCode ?? '?'}, city hidden`;
   return `${loc.countryCode ?? '?'}${loc.city ? ` ${loc.city}` : ''}`;

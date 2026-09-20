@@ -4,7 +4,7 @@
   <key>Label</key><string>com.arcstore.vinted.hunt</string>
   <key>ProgramArguments</key><array>
     <string>/opt/homebrew/bin/node</string><string>--no-warnings=ExperimentalWarning</string><string>bin/vinted.js</string>
-    <string>hunt</string><string>--tier</string><string>all</string><string>--pages</string><string>2</string><string>--ai-max</string><string>120</string><string>--min-upside</string><string>1</string><string>--concurrency</string><string>6</string><string>--domain</string><string>hr</string><string>--db</string><string>vinted.db</string><string>--format</string><string>json</string><string>--out</string><string>hunt-results.json</string>
+    <string>hunt</string><string>--tier</string><string>all</string><string>--pages</string><string>2</string><string>--ai-max</string><string>120</string><string>--min-upside</string><string>1</string><string>--concurrency</string><string>6</string><string>--domain</string><string>at</string><string>--seller-country</string><string>AT</string><string>--db</string><string>vinted.db</string><string>--format</string><string>json</string><string>--out</string><string>hunt-results.json</string>
   </array>
   <key>WorkingDirectory</key><string>/Users/grgurdamiani/ARC store/vinted-scraper</string>
   <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/bin:/bin</string><key>HOME</key><string>/Users/grgurdamiani</string></dict>

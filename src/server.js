@@ -5,6 +5,7 @@ import { formatLocation } from './geo.js';
 import { loadRules, fitsMySize } from './rules.js';
 import { Embedder, rankBySimilarity } from './embed.js';
 import { sellThrough } from './stats.js';
+import { buildSeries, detectTrends, summarize } from './trends.js';
 import { TAXONOMY } from './embed.js';
 import { COLOR_NAMES } from './color.js';
 import { existsSync } from 'node:fs';
@@ -25,7 +26,7 @@ export function createDashboard({ store, domain, logger, rules, password = proce
   const vectors = () => { const n = store.embeddingCount(); if (n !== vecCache.n) vecCache = { n, rows: store.allEmbeddings() }; return vecCache.rows; };
   const listOpts = (q) => {
     const num = (k) => (q.get(k) === null || q.get(k) === '' ? undefined : Number(q.get(k)));
-    return { searchKey: q.get('search') || undefined, minScore: num('minScore'), minBuy: num('minBuy'), minPotential: num('minPotential'), analyzed: q.get('analyzed') === '1', maxPrice: num('maxPrice'), locationStatus: q.get('location') || undefined, category: q.get('category') || undefined, style: q.get('style') || undefined, color: q.get('color') || undefined, material: q.get('material') || undefined, gender: q.get('gender') || undefined, sort: q.get('sort') || 'newest', limit: Math.min(num('limit') ?? 120, 500), offset: num('offset') ?? 0 };
+    return { searchKey: q.get('search') || undefined, minScore: num('minScore'), minBuy: num('minBuy'), minPotential: num('minPotential'), analyzed: q.get('analyzed') === '1', maxPrice: num('maxPrice'), locationStatus: q.get('location') || undefined, category: q.get('category') || undefined, country: q.get('country') || undefined, style: q.get('style') || undefined, color: q.get('color') || undefined, material: q.get('material') || undefined, gender: q.get('gender') || undefined, sort: q.get('sort') || 'newest', limit: Math.min(num('limit') ?? 120, 500), offset: num('offset') ?? 0 };
   };
   const decorate = (items) => items.map((it) => ({ ...it, locationText: formatLocation(it.location), messageUrl: it.sellerId ? `https://www.vinted.${domain}/member/${it.sellerId}` : undefined }));
   const ui = () => readFileSync(UI_PATH, 'utf8'); // re-read each request so edits show up without restart
@@ -95,6 +96,12 @@ export function createDashboard({ store, domain, logger, rules, password = proce
         const agreement = {};
         for (const p of pairs) { const a = (agreement[p.field] ??= { n: 0, agree: 0 }); if (p.auto !== null && p.auto !== undefined) { a.n++; if (p.auto === p.human) a.agree++; } }
         return json(res, 200, { counts, agreement });
+      }
+      if (url.pathname === '/api/trends') {
+        const days = Number(url.searchParams.get('days') || 28);
+        const built = buildSeries(store.sellThroughRows(days), { rules, days });
+        const trends = detectTrends(built, { recentDays: Math.min(7, Math.max(1, Math.floor(built.days.length / 2))) });
+        return json(res, 200, { historyDays: built.days.length, from: built.days[0], to: built.days[built.days.length - 1], summary: summarize(trends), trends: trends.slice(0, 200) });
       }
       if (url.pathname === '/api/sellthrough') return json(res, 200, sellThrough(store.sellThroughRows(Number(url.searchParams.get('days') || 30)), { rules }));
       if (url.pathname === '/api/searches') return json(res, 200, { searches: store.searches() });

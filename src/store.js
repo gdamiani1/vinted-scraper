@@ -140,7 +140,7 @@ export class Store {
   }
 
   /** Listings for the dashboard/API. Sort: newest | score | price. */
-  list({ searchKey, minScore, minBuy, minPotential, analyzed, maxPrice, locationStatus, category, style, color, material, gender, ids, sort = 'newest', limit = 200, offset = 0 } = {}) {
+  list({ searchKey, minScore, minBuy, minPotential, analyzed, maxPrice, locationStatus, category, style, color, material, gender, country, ids, sort = 'newest', limit = 200, offset = 0 } = {}) {
     const where = [];
     const args = [];
     if (searchKey) { where.push('search_key = ?'); args.push(searchKey); }
@@ -151,6 +151,7 @@ export class Store {
     if (analyzed) where.push('buy_score IS NOT NULL');
     if (minPotential !== undefined) { where.push('COALESCE(potential, -1) >= ?'); args.push(minPotential); }
     if (category) { where.push('category2 = ?'); args.push(category); }
+    if (country) { where.push("json_extract(json, '$.location.countryCode') = ?"); args.push(country.toUpperCase()); }
     if (style) { where.push('style = ?'); args.push(style); }
     if (color) { where.push('color2 = ?'); args.push(color); }
     if (material) { where.push('material = ?'); args.push(material); }

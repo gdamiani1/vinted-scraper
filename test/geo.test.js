@@ -83,3 +83,20 @@ test('Store caches seller profiles with a TTL', () => {
   assert.equal(store.getSeller(5, { maxAgeMs: -1 }), undefined);
   store.close();
 });
+
+test('countryFilter keeps sellers from the country (city hidden included) and drops everyone else', async () => {
+  const { countryFilter } = await import('../src/geo.js');
+  const store = new Store(':memory:');
+  const profiles = { 1: { id: 1, login: 'a', countryCode: 'AT', city: 'Graz' }, 2: { id: 2, login: 'b', countryCode: 'AT', city: undefined }, 3: { id: 3, login: 'c', countryCode: 'DE', city: 'Berlin' }, 4: { id: 4, login: 'd', countryCode: undefined, city: undefined } };
+  const scraper = { user: async (id) => profiles[id], logger: { debug() {}, warn() {}, info() {} } };
+  const geocoder = { geocode: async () => { throw new Error('should not geocode for a country-only filter'); } };
+  const items = [1, 2, 3, 4].map((sellerId) => ({ id: sellerId * 10, sellerId, title: 't' }));
+  const kept = await locateItems(items, { scraper, store, geocoder, near: countryFilter('AT') });
+  assert.deepEqual(kept.map((i) => i.id), [10, 20, 40]); // Graz, city-hidden Austrian, and unknown country (not strict)
+  assert.equal(kept[0].location.status, 'within');
+  assert.equal(kept[1].location.status, 'within');
+  assert.equal(kept[2].location.status, 'unknown');
+  const strict = await locateItems(items, { scraper, store, geocoder, near: countryFilter('AT', { strict: true }) });
+  assert.deepEqual(strict.map((i) => i.id), [10, 20]);
+  store.close();
+});

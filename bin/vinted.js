@@ -14,11 +14,12 @@ const brandTierOf = (b) => brandTierOf_(b, MY_SIZE_RULES);
 import { evaluateListings } from '../src/buyer.js';
 import { Embedder, rankBySimilarity, MODEL_ID } from '../src/embed.js';
 import { sellThrough } from '../src/stats.js';
+import { buildSeries, detectTrends, summarize } from '../src/trends.js';
 import { embedNewItems, broadRecheck, relabelAll, recolorAll } from '../src/enrich.js';
 import { formatTable, writeOutput } from '../src/export.js';
 import { CONDITIONS, COLORS, ORDERS } from '../src/lookup.js';
 import { createLogger } from '../src/util.js';
-import { formatLocation } from '../src/geo.js';
+import { formatLocation, countryFilter } from '../src/geo.js';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { mkdirSync } from 'node:fs';
@@ -32,6 +33,7 @@ Usage:
   vinted hunt   [--brand …] [--tier 1|2|all]    sweep luxury brands, triage by text, photo-check the best, rank buys (--from-db reuses the last sweep)
   vinted recheck [--min-buy 50] [--broad]       re-visit strong buys (or, --broad, all recent luxury listings): available, reserved, sold, removed
   vinted embed   [--limit n] [--relabel|--recolor]  local CLIP embeddings + labels; --relabel recomputes labels from vectors, --recolor re-reads colour from pixels
+  vinted trends  [--days 28] [--group style] [--commentary]   rising / cooling / flooding segments with 7-day forecasts
   vinted calibrate                              how often automatic labels agree with your tags, per field
   vinted stats   [--days 30]                    sell-through and days-to-sell by tier, category, style, price band, brand
   vinted rescore [--db file] [--rules file]     recompute buy scores from stored verdicts (no model calls)
@@ -53,6 +55,7 @@ Filters:
   --exclude <regex>        repeatable; drop titles matching any
   --near <place|lat,lon>   keep sellers within --radius km (default 50) of a place, e.g. --near Wien
   --strict-location        with --near: also drop sellers who hide their city
+  --seller-country AT      keep only listings from sellers in that country (search, deals, hunt, watch)
   --pages <n> (max 10)     --limit <n>
 
 AI buying assistant (OpenRouter, default model qwen/qwen3.8-flash; needs OPENROUTER_API_KEY):
@@ -106,10 +109,10 @@ const options = {
   config: { type: 'string', short: 'c' }, interval: { type: 'string' }, once: { type: 'boolean' }, webhook: { type: 'string' },
   mac: { type: 'boolean' }, 'notify-first-run': { type: 'boolean' }, name: { type: 'string' },
   concurrency: { type: 'string' }, include: { type: 'string', multiple: true }, exclude: { type: 'string', multiple: true },
-  near: { type: 'string' }, radius: { type: 'string' }, 'strict-location': { type: 'boolean' }, port: { type: 'string' },
+  near: { type: 'string' }, radius: { type: 'string' }, 'seller-country': { type: 'string' }, 'strict-location': { type: 'boolean' }, port: { type: 'string' },
   host: { type: 'string' }, password: { type: 'string' },
   'telegram-token': { type: 'string' }, 'telegram-chat': { type: 'string' }, 'telegram-min-score': { type: 'string' },
-  ai: { type: 'boolean' }, force: { type: 'boolean' }, 'my-size': { type: 'boolean' }, broad: { type: 'boolean' }, days: { type: 'string' }, relabel: { type: 'boolean' }, recolor: { type: 'boolean' }, tier: { type: 'string' }, 'from-db': { type: 'boolean' }, 'min-upside': { type: 'string' }, 'analyze-picks': { type: 'boolean' }, triage: { type: 'boolean' }, 'no-triage': { type: 'boolean' }, 'ai-model': { type: 'string' }, 'ai-max': { type: 'string' }, rules: { type: 'string' }, 'min-buy': { type: 'string' }, 'all-brands': { type: 'boolean' },
+  ai: { type: 'boolean' }, force: { type: 'boolean' }, 'my-size': { type: 'boolean' }, broad: { type: 'boolean' }, days: { type: 'string' }, relabel: { type: 'boolean' }, recolor: { type: 'boolean' }, group: { type: 'string' }, commentary: { type: 'boolean' }, tier: { type: 'string' }, 'from-db': { type: 'boolean' }, 'min-upside': { type: 'string' }, 'analyze-picks': { type: 'boolean' }, triage: { type: 'boolean' }, 'no-triage': { type: 'boolean' }, 'ai-model': { type: 'string' }, 'ai-max': { type: 'string' }, rules: { type: 'string' }, 'min-buy': { type: 'string' }, 'all-brands': { type: 'boolean' },
 };
 
 function fail(msg, code = 1) {
@@ -195,7 +198,9 @@ async function main() {
   const aiMax = intOpt(v['ai-max'], 'ai-max') ?? 30;
   const minBuy = numOpt(v['min-buy'], 'min-buy');
   const vision = (model) => createVisionClient({ model: model ?? v['ai-model'], logger, pricePerMillion: { prompt: 0.15, completion: 0.47 } });
-  const nearFor = async (input) => (input ? scraper.near(input, { radiusKm: radius, strict: Boolean(v['strict-location']) }) : undefined);
+  const sellerCountry = v['seller-country'] ?? process.env.VINTED_SELLER_COUNTRY;
+  const nearFor = async (input) => (input ? scraper.near(input, { radiusKm: radius, strict: Boolean(v['strict-location']) }) : sellerCountry ? countryFilter(sellerCountry) : undefined);
+  const countryPrefilter = (code) => (code ? async (items) => scraper.locate(items, countryFilter(code)) : undefined);
 
   switch (command) {
     case 'search':
@@ -256,7 +261,7 @@ async function main() {
         // Second pass: photo-check stored triage picks that have no verdict yet.
         let picks = store.pendingPotential(minUpside, aiMax);
         logger.info(`${picks.length} stored picks with upside ≥ ${Math.round(minUpside * 100)}% await photo checks`);
-        picks = await evaluateListings(picks, { scraper, store, vision: vision(), rules, max: aiMax, luxuryOnly: !v['all-brands'], triage: false, concurrency });
+        picks = await evaluateListings(picks, { scraper, store, vision: vision(), rules, max: aiMax, luxuryOnly: !v['all-brands'], triage: false, concurrency, prefilter: countryPrefilter(sellerCountry) });
         picks = picks.filter((i) => i.buy).sort((a, b) => b.buy.score - a.buy.score);
         if (minBuy !== undefined) picks = picks.filter((i) => i.buy.score >= minBuy);
         store.close();
@@ -273,7 +278,7 @@ async function main() {
       }
       for (const brand of v['from-db'] ? [] : brands) {
         try {
-          const { items } = await scraper.search({ query, brand, category: v.category, condition: v.condition, order: v.order ?? 'newest', priceFrom: numOpt(v.min, 'min') ?? priceFloor(brandTierOf(brand), rules), priceTo: numOpt(v.max, 'max'), include: v.include, exclude: v.exclude }, { pages, near });
+          const { items } = await scraper.search({ query, brand, category: v.category, condition: v.condition, order: v.order ?? 'newest', priceFrom: numOpt(v.min, 'min') ?? priceFloor(brandTierOf(brand), rules), priceTo: numOpt(v.max, 'max'), include: v.include, exclude: v.exclude }, { pages, near: v.near ? near : undefined });
           for (const it of items) all.set(it.id, { ...it, huntBrand: brand });
           logger.info(`  ${brand}: ${items.length} listings`);
         } catch (e) { logger.warn(`  ${brand}: ${e.message}`); }
@@ -281,7 +286,7 @@ async function main() {
       let items = [...all.values()];
       const { newItems } = store.recordSeen(v.name ?? `hunt:${tierSel}`, items);
       logger.info(`${items.length} listings across ${brands.length} brands (${newItems.length} new); triage + photo checks on the best ${aiMax}`);
-      items = await evaluateListings(items, { scraper, store, vision: vision(), rules, max: aiMax, minUpside, luxuryOnly: !v['all-brands'], triage: !v['no-triage'], concurrency });
+      items = await evaluateListings(items, { scraper, store, vision: vision(), rules, max: aiMax, minUpside, luxuryOnly: !v['all-brands'], triage: !v['no-triage'], concurrency, prefilter: countryPrefilter(sellerCountry) });
       items = items.filter((i) => i.buy).sort((a, b) => b.buy.score - a.buy.score);
       store.setBuyScores(items);
       if (minBuy !== undefined) items = items.filter((i) => i.buy.score >= minBuy);
@@ -297,6 +302,23 @@ async function main() {
       logger.info(`embedded ${n} listings; ${store.embeddingCount()} total`);
       output(Object.entries(store.taxonomyCounts()).flatMap(([g, rows]) => rows.slice(0, 8).map((r) => ({ group: g, label: r.label, n: r.n }))), v, ['group', 'label', 'n']);
       store.close();
+      break;
+    }
+    case 'trends': {
+      const store = openStore(v.db);
+      const days = intOpt(v.days, 'days') ?? 28;
+      const groups = v.group ? v.group.split(',').map((g) => ({ style: 'style', category: 'category2', colour: 'color2', color: 'color2', brand: 'brand', tier: 'tier', price: 'priceBand' })[g] ?? g) : undefined;
+      const built = buildSeries(store.sellThroughRows(days), { rules, days, ...(groups ? { groupBy: groups } : {}) });
+      store.close();
+      const trends = detectTrends(built, { recentDays: Math.min(7, Math.max(1, Math.floor(built.days.length / 2))) });
+      const lines = summarize(trends);
+      for (const l of lines) logger.info(l);
+      logger.info(`history: ${built.days.length} day(s) of listings (${built.days[0] ?? '-'} → ${built.days[built.days.length - 1] ?? '-'})`);
+      if (v.commentary) {
+        const text = await vision().chat('You are a market analyst for a luxury fashion reseller. Write 6-10 short plain sentences for a buyer, no headings, no bullet lists. Be specific about which segments to buy into or avoid and why; say plainly when the data is too thin to conclude.', JSON.stringify({ history_days: built.days.length, summary: lines, segments: trends.slice(0, 40) }));
+        process.stderr.write('\n' + text + '\n\n');
+      }
+      output(trends.filter((t) => t.label !== 'insufficient data').slice(0, limit ?? 40).concat(trends.filter((t) => t.label === 'insufficient data').slice(0, 5)), v, ['label', 'momentum', 'group', 'key', 'total', 'recent.share', 'shareChange', 'recent.price', 'priceChange', 'recent.sellThrough', 'sellThroughChange', 'forecast.shareNext7d', 'forecast.priceNext7d']);
       break;
     }
     case 'calibrate': {
@@ -419,6 +441,7 @@ async function main() {
       const nearInput = v.near ?? config.near;
       const near = nearInput ? await scraper.near(nearInput, { radiusKm: numOpt(v.radius, 'radius') ?? config.radiusKm ?? 50, strict: v['strict-location'] ?? config.strictLocation ?? false }) : undefined;
       if (near) logger.info(`location filter: within ${near.radiusKm} km of ${near.name} (${near.countryCode})${near.strict ? ', strict' : ''}`);
+      if (sellerCountry ?? config.sellerCountry) logger.info(`seller filter: only sellers in ${sellerCountry ?? config.sellerCountry}`);
       const tg = config.telegram ?? {};
       const telegram = { token: v['telegram-token'] ?? tg.token ?? process.env.TELEGRAM_BOT_TOKEN, chatId: v['telegram-chat'] ?? tg.chatId ?? process.env.TELEGRAM_CHAT_ID };
       const telegramMinScore = numOpt(v['telegram-min-score'], 'telegram-min-score') ?? tg.minScore ?? 60;
@@ -438,7 +461,7 @@ async function main() {
         minScore: numOpt(v['min-score'], 'min-score') ?? config.minScore ?? 0,
         once: v.once, notifyFirstRun: v['notify-first-run'] ?? config.notifyFirstRun, near, ai,
         recheck: config.recheck === false ? undefined : { everySec: config.recheck?.everySec ?? 3600, minBuy: config.recheck?.minBuy ?? (ai ? ai.minBuy : 50), limit: config.recheck?.limit ?? 60 },
-        embedder: config.embed === false ? undefined : new Embedder({ logger }), rules, broadRecheckAt: config.broadRecheckAt ?? '02:30',
+        embedder: config.embed === false ? undefined : new Embedder({ logger }), rules, broadRecheckAt: config.broadRecheckAt ?? '02:30', sellerCountry: sellerCountry ?? config.sellerCountry,
         signal: ac.signal, logger,
       });
       store.close();
@@ -491,7 +514,7 @@ async function main() {
         }
         let items = [...all.values()];
         store.recordSeen('hunt:all', items);
-        items = await evaluateListings(items, { scraper, store, vision: vision(config.ai?.model), rules, max: config.huntMax ?? 120, minUpside: config.huntMinUpside ?? 1, luxuryOnly: true, triage: true, concurrency: 6 });
+        items = await evaluateListings(items, { scraper, store, vision: vision(config.ai?.model), rules, max: config.huntMax ?? 120, minUpside: config.huntMinUpside ?? 1, luxuryOnly: true, triage: true, concurrency: 6, prefilter: countryPrefilter(config.sellerCountry) });
         const strong = items.filter((i) => i.buy && i.buy.score >= (config.ai?.minBuy ?? 50)).sort((a, b) => b.buy.score - a.buy.score);
         store.setBuyScores(items.filter((i) => i.buy));
         logger.info(`[hunt] done: ${strong.length} strong buys`);
@@ -514,7 +537,7 @@ async function main() {
       const ac = new AbortController();
       for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { logger.info('stopping…'); ac.abort(); server.close(); setTimeout(() => process.exit(0), 2000).unref(); });
       logger.info(`watching ${config.searches?.length ?? 0} search(es) every ${config.intervalSec ?? 120}s on ${scraper.baseUrl}${ai ? ', AI on' : ''}`);
-      await watch({ scraper, store, searches: config.searches ?? [], notify, intervalSec: config.intervalSec ?? 120, pages: config.pages ?? 1, minScore: config.minScore ?? 0, near, ai, recheck: { everySec: 3600, minBuy: ai ? ai.minBuy : 50, limit: 60 }, embedder: config.embed === false ? undefined : new Embedder({ logger }), rules, broadRecheckAt: config.broadRecheckAt ?? '02:30', signal: ac.signal, logger });
+      await watch({ scraper, store, searches: config.searches ?? [], notify, intervalSec: config.intervalSec ?? 120, pages: config.pages ?? 1, minScore: config.minScore ?? 0, near, ai, recheck: { everySec: 3600, minBuy: ai ? ai.minBuy : 50, limit: 60 }, embedder: config.embed === false ? undefined : new Embedder({ logger }), rules, broadRecheckAt: config.broadRecheckAt ?? '02:30', sellerCountry: config.sellerCountry, signal: ac.signal, logger });
       store.close();
       break;
     }
