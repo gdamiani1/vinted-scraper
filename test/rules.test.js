@@ -7,8 +7,11 @@ const rules = loadRules();
 test('brandTier recognises luxury brands case/diacritic-insensitively', () => {
   assert.equal(brandTier('Chanel', rules), 'tier1');
   assert.equal(brandTier('hermes', rules), 'tier1');
-  assert.equal(brandTier('Maison Margiela', rules), 'tier2');
+  assert.equal(brandTier('Maison Margiela', rules), 'tier1');
   assert.equal(brandTier('Nike', rules), 'other');
+  assert.equal(brandTier('Sandro', rules), 'tier2');
+  assert.equal(brandTier('COS', rules), 'tier3');
+  assert.equal(brandTier('Loro Piana', rules), 'tier1');
   assert.equal(brandTier(undefined, rules), 'other');
 });
 
@@ -64,6 +67,8 @@ test('isCandidate drops packaging, samples and suspiciously cheap luxury listing
   assert.equal(isCandidate({ title: 'Chanel Tragetasche Tüte', brand: 'Chanel', price: 10 }, rules), false);
   assert.equal(isCandidate({ title: 'Chanel Classic Flap', brand: 'Chanel', price: 1500 }, rules), true);
   assert.equal(isCandidate({ title: 'Chanel earrings', brand: 'Chanel', price: 40 }, rules), false);
+  assert.equal(isCandidate({ title: 'Sandro blazer', brand: 'Sandro', price: 40 }, rules), true);
+  assert.equal(isCandidate({ title: 'COS coat', brand: 'COS', price: 20 }, rules), true);
   assert.equal(isCandidate({ title: 'Nike Air Max', brand: 'Nike', price: 40 }, rules), false);
   assert.equal(isCandidate({ title: 'Nike Air Max', brand: 'Nike', price: 40 }, rules, { luxuryOnly: false }), true);
 });

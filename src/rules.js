@@ -22,7 +22,7 @@ function deepMerge(a, b) {
 export function brandTier(brand, rules) {
   const b = normalizeText(brand);
   if (!b) return 'other';
-  for (const tier of ['tier1', 'tier2']) {
+  for (const tier of ['tier1', 'tier2', 'tier3']) {
     for (const name of rules.brands[tier] ?? []) {
       const n = normalizeText(name);
       if (n.endsWith(' x') ? b.startsWith(n) : b === n || b.startsWith(n + ' ')) return tier;
@@ -57,6 +57,11 @@ export function sizeDesirability(size, itemType, rules) {
   if (eu !== undefined && table.eu) return stepLookup(table.eu, eu);
   if (letter && table.letters?.[letter] !== undefined) return table.letters[letter];
   return table.unknown ?? 0.6;
+}
+
+/** Price floor below which a listing of this brand tier is treated as packaging/placeholder noise. */
+export function priceFloor(tier, rules) {
+  return rules.priceFloorByTier?.[tier] ?? rules.luxuryPriceFloorEur ?? 0;
 }
 
 export function categoryLiquidity(itemType, rules) {
@@ -150,7 +155,7 @@ export function buyScore(item, { verdict, rules, comparables = [], sellFeePct = 
   if (fb !== undefined && fb < 3) { score *= 0.6; reasons.push(`Seller has ${fb} reviews`); }
   else if (fb !== undefined && fb < 10) { score *= 0.85; reasons.push(`Seller has only ${fb} reviews`); }
   if (risk === 'high') score = 0;
-  if (price !== undefined && price < rules.priceFloorEur) { score = 0; reasons.push(`Price ${price} below floor (placeholder?)`); }
+  if (price !== undefined && price < Math.min(rules.priceFloorEur ?? 15, priceFloor(tier, rules))) { score = 0; reasons.push(`Price ${price} below floor (placeholder?)`); }
   if (verdict?.photo_quality === 'stock_images') score *= 0.5;
 
   return {

@@ -9,7 +9,8 @@ import { watch } from '../src/watch.js';
 import { createNotifier } from '../src/notify.js';
 import { createDashboard } from '../src/server.js';
 import { createVisionClient, analyzeListing, normalizeVerdict } from '../src/vision.js';
-import { loadRules, buyScore, fitsMySize } from '../src/rules.js';
+import { loadRules, buyScore, fitsMySize, brandTier as brandTierOf_, priceFloor } from '../src/rules.js';
+const brandTierOf = (b) => brandTierOf_(b, MY_SIZE_RULES);
 import { evaluateListings } from '../src/buyer.js';
 import { formatTable, writeOutput } from '../src/export.js';
 import { CONDITIONS, COLORS, ORDERS } from '../src/lookup.js';
@@ -34,7 +35,7 @@ Usage:
   vinted catalogs [keyword]                     list/search category tree
   vinted watch  [--config file] [filters]       poll saved searches, alert on new/price drops
   vinted init                                   write vinted.config.json with an example
-  vinted serve  [--db file] [--port 3210]        local dashboard for everything in the database
+  vinted serve  [--db file] [--port 3210] [--host 0.0.0.0 --password …]   dashboard (password required off-localhost)
 
 Filters:
   --brand <name|id>        repeatable            --category <name|id>   repeatable
@@ -99,6 +100,7 @@ const options = {
   mac: { type: 'boolean' }, 'notify-first-run': { type: 'boolean' }, name: { type: 'string' },
   concurrency: { type: 'string' }, include: { type: 'string', multiple: true }, exclude: { type: 'string', multiple: true },
   near: { type: 'string' }, radius: { type: 'string' }, 'strict-location': { type: 'boolean' }, port: { type: 'string' },
+  host: { type: 'string' }, password: { type: 'string' },
   'telegram-token': { type: 'string' }, 'telegram-chat': { type: 'string' }, 'telegram-min-score': { type: 'string' },
   ai: { type: 'boolean' }, force: { type: 'boolean' }, 'my-size': { type: 'boolean' }, tier: { type: 'string' }, 'from-db': { type: 'boolean' }, 'min-upside': { type: 'string' }, 'analyze-picks': { type: 'boolean' }, triage: { type: 'boolean' }, 'no-triage': { type: 'boolean' }, 'ai-model': { type: 'string' }, 'ai-max': { type: 'string' }, rules: { type: 'string' }, 'min-buy': { type: 'string' }, 'all-brands': { type: 'boolean' },
 };
@@ -241,7 +243,7 @@ async function main() {
       const store = openStore(v.db);
       scraper.store = store; scraper.geocoder.store = store;
       const tierSel = v.tier ?? '1';
-      const brands = v.brand?.length ? v.brand : [...(tierSel === '2' ? rules.brands.tier2 : tierSel === 'all' ? [...rules.brands.tier1, ...rules.brands.tier2] : rules.brands.tier1)];
+      const brands = v.brand?.length ? v.brand : [...new Set(tierSel === '2' ? rules.brands.tier2 : tierSel === '3' ? rules.brands.tier3 ?? [] : tierSel === 'all' ? [...rules.brands.tier1, ...rules.brands.tier2, ...(rules.brands.tier3 ?? [])] : rules.brands.tier1)].filter((x) => !/ x$/.test(x));
       const minUpside = numOpt(v['min-upside'], 'min-upside') ?? 0.5;
       if (v['analyze-picks']) {
         // Second pass: photo-check stored triage picks that have no verdict yet.
@@ -264,7 +266,7 @@ async function main() {
       }
       for (const brand of v['from-db'] ? [] : brands) {
         try {
-          const { items } = await scraper.search({ query, brand, category: v.category, condition: v.condition, order: v.order ?? 'newest', priceFrom: numOpt(v.min, 'min') ?? rules.luxuryPriceFloorEur, priceTo: numOpt(v.max, 'max'), include: v.include, exclude: v.exclude }, { pages, near });
+          const { items } = await scraper.search({ query, brand, category: v.category, condition: v.condition, order: v.order ?? 'newest', priceFrom: numOpt(v.min, 'min') ?? priceFloor(brandTierOf(brand), rules), priceTo: numOpt(v.max, 'max'), include: v.include, exclude: v.exclude }, { pages, near });
           for (const it of items) all.set(it.id, { ...it, huntBrand: brand });
           logger.info(`  ${brand}: ${items.length} listings`);
         } catch (e) { logger.warn(`  ${brand}: ${e.message}`); }
@@ -417,8 +419,11 @@ async function main() {
       if (v.config && existsSync(v.config)) config = JSON.parse(readFileSync(v.config, 'utf8'));
       const store = new Store(v.db ?? config.db ?? 'vinted.db');
       const port = intOpt(v.port, 'port', { max: 65535 }) ?? 3210;
-      const server = createDashboard({ store, domain: v.domain ?? config.domain ?? process.env.VINTED_DOMAIN ?? 'hr', logger });
-      server.listen(port, '127.0.0.1', () => process.stderr.write(`dashboard: http://localhost:${port}  (db: ${v.db ?? config.db ?? 'vinted.db'})\n`));
+      const host = v.host ?? process.env.DASHBOARD_HOST ?? '127.0.0.1';
+      const password = v.password ?? process.env.DASHBOARD_PASSWORD;
+      if (host !== '127.0.0.1' && host !== 'localhost' && !password) fail('binding the dashboard to a non-local address requires --password (or DASHBOARD_PASSWORD)');
+      const server = createDashboard({ store, domain: v.domain ?? config.domain ?? process.env.VINTED_DOMAIN ?? 'hr', logger, password });
+      server.listen(port, host, () => process.stderr.write(`dashboard: http://${host === '0.0.0.0' ? 'localhost' : host}:${port}  (db: ${v.db ?? config.db ?? 'vinted.db'}${password ? ', password protected' : ''})\n`));
       await new Promise((resolve) => process.on('SIGINT', () => { server.close(); store.close(); resolve(); }));
       break;
     }

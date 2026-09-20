@@ -193,6 +193,21 @@ favouriteCount, isPromoted, thumbnail, photos[] (full size), dominantColor, sell
 sellerIsBusiness, searchScore, contentSource
 ```
 
+## Running it as a service on a Mac (free hosting)
+
+Vinted's bot protection is far friendlier to a home IP than to a datacenter, so the cheapest reliable host
+is the Mac itself. `deploy/` contains launchd definitions for three login services: the watcher (restarts
+on crash), the dashboard on port 3210 bound to all interfaces with a password, and a daily `hunt` at 07:30.
+
+```bash
+bash deploy/install-services.sh          # install and start; logs in ~/Library/Logs/vinted/
+bash deploy/install-services.sh uninstall
+```
+
+The dashboard password lives in `.env` as `DASHBOARD_PASSWORD` (any username). To reach it from a phone,
+install Tailscale on the Mac and the phone, sign in with the same account, and open
+`http://<mac-name>:3210`; nothing is exposed to the public internet.
+
 ## Tests
 
 ```bash

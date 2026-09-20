@@ -14,7 +14,7 @@ const UI_PATH = fileURLToPath(new URL('./ui.html', import.meta.url));
  * GET /api/searches     → saved searches with counts
  * GET /api/stats        → totals
  */
-export function createDashboard({ store, domain, logger, rules }) {
+export function createDashboard({ store, domain, logger, rules, password = process.env.DASHBOARD_PASSWORD }) {
   rules ??= loadRules(existsSync('rules.json') ? 'rules.json' : undefined);
   const ui = () => readFileSync(UI_PATH, 'utf8'); // re-read each request so edits show up without restart
   const json = (res, status, body) => {
@@ -23,6 +23,11 @@ export function createDashboard({ store, domain, logger, rules }) {
   };
   return createServer((req, res) => {
     const url = new URL(req.url, 'http://localhost');
+    if (password) {
+      const [scheme, encoded] = (req.headers.authorization ?? '').split(' ');
+      const ok = scheme === 'Basic' && Buffer.from(encoded ?? '', 'base64').toString().split(':').slice(1).join(':') === password;
+      if (!ok) { res.writeHead(401, { 'www-authenticate': 'Basic realm="Vinted Watch"', 'content-type': 'text/plain' }); return res.end('password required'); }
+    }
     try {
       if (url.pathname === '/' || url.pathname === '/index.html') {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });

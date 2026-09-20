@@ -1,5 +1,5 @@
 import { analyzeListing } from './vision.js';
-import { buyScore, brandTier } from './rules.js';
+import { buyScore, brandTier, priceFloor } from './rules.js';
 import { normalizeText } from './util.js';
 
 /** Cheap pre-filter: luxury brand, not packaging/samples, not below the luxury price floor. */
@@ -8,7 +8,7 @@ export function isCandidate(item, rules, { luxuryOnly = true } = {}) {
   if (luxuryOnly && tier === 'other') return false;
   const hay = normalizeText(`${item.title ?? ''} ${item.detail?.description ?? ''}`);
   if ((rules.packagingWords ?? []).some((w) => hay.includes(normalizeText(w)))) return false;
-  if (tier !== 'other' && Number.isFinite(item.price) && item.price < (rules.luxuryPriceFloorEur ?? 0)) return false;
+  if (tier !== 'other' && Number.isFinite(item.price) && item.price < priceFloor(tier, rules)) return false;
   return true;
 }
 
