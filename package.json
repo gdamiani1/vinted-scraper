@@ -20,6 +20,7 @@
     "start": "node --no-warnings=ExperimentalWarning bin/vinted.js run --config deploy/railway.config.json"
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.3.0"
+    "@huggingface/transformers": "^4.3.0",
+    "sharp": "^0.35.4"
   }
 }

@@ -14,7 +14,7 @@ const brandTierOf = (b) => brandTierOf_(b, MY_SIZE_RULES);
 import { evaluateListings } from '../src/buyer.js';
 import { Embedder, rankBySimilarity, MODEL_ID } from '../src/embed.js';
 import { sellThrough } from '../src/stats.js';
-import { embedNewItems, broadRecheck, relabelAll } from '../src/enrich.js';
+import { embedNewItems, broadRecheck, relabelAll, recolorAll } from '../src/enrich.js';
 import { formatTable, writeOutput } from '../src/export.js';
 import { CONDITIONS, COLORS, ORDERS } from '../src/lookup.js';
 import { createLogger } from '../src/util.js';
@@ -31,7 +31,7 @@ Usage:
   vinted item   <id|url> [--seller]             full item detail (+ seller profile)
   vinted hunt   [--brand …] [--tier 1|2|all]    sweep luxury brands, triage by text, photo-check the best, rank buys (--from-db reuses the last sweep)
   vinted recheck [--min-buy 50] [--broad]       re-visit strong buys (or, --broad, all recent luxury listings): available, reserved, sold, removed
-  vinted embed   [--limit n] [--relabel]        local CLIP embeddings + category/style/colour/material labels (--relabel: recompute labels only)
+  vinted embed   [--limit n] [--relabel|--recolor]  local CLIP embeddings + labels; --relabel recomputes labels from vectors, --recolor re-reads colour from pixels
   vinted stats   [--days 30]                    sell-through and days-to-sell by tier, category, style, price band, brand
   vinted rescore [--db file] [--rules file]     recompute buy scores from stored verdicts (no model calls)
   vinted analyze <id|url> [--force]              vision verdict + resale buy score for one listing (--force ignores the cache)
@@ -108,7 +108,7 @@ const options = {
   near: { type: 'string' }, radius: { type: 'string' }, 'strict-location': { type: 'boolean' }, port: { type: 'string' },
   host: { type: 'string' }, password: { type: 'string' },
   'telegram-token': { type: 'string' }, 'telegram-chat': { type: 'string' }, 'telegram-min-score': { type: 'string' },
-  ai: { type: 'boolean' }, force: { type: 'boolean' }, 'my-size': { type: 'boolean' }, broad: { type: 'boolean' }, days: { type: 'string' }, relabel: { type: 'boolean' }, tier: { type: 'string' }, 'from-db': { type: 'boolean' }, 'min-upside': { type: 'string' }, 'analyze-picks': { type: 'boolean' }, triage: { type: 'boolean' }, 'no-triage': { type: 'boolean' }, 'ai-model': { type: 'string' }, 'ai-max': { type: 'string' }, rules: { type: 'string' }, 'min-buy': { type: 'string' }, 'all-brands': { type: 'boolean' },
+  ai: { type: 'boolean' }, force: { type: 'boolean' }, 'my-size': { type: 'boolean' }, broad: { type: 'boolean' }, days: { type: 'string' }, relabel: { type: 'boolean' }, recolor: { type: 'boolean' }, tier: { type: 'string' }, 'from-db': { type: 'boolean' }, 'min-upside': { type: 'string' }, 'analyze-picks': { type: 'boolean' }, triage: { type: 'boolean' }, 'no-triage': { type: 'boolean' }, 'ai-model': { type: 'string' }, 'ai-max': { type: 'string' }, rules: { type: 'string' }, 'min-buy': { type: 'string' }, 'all-brands': { type: 'boolean' },
 };
 
 function fail(msg, code = 1) {
@@ -292,7 +292,7 @@ async function main() {
     case 'embed': {
       const store = openStore(v.db);
       const embedder = new Embedder({ logger });
-      const n = v.relabel ? await relabelAll({ store, embedder, logger }) : await embedNewItems({ store, embedder, limit: limit ?? 100000, logger, concurrency: 4 });
+      const n = v.recolor ? await recolorAll({ store, logger }) : v.relabel ? await relabelAll({ store, embedder, logger }) : await embedNewItems({ store, embedder, limit: limit ?? 100000, logger, concurrency: 4 });
       logger.info(`embedded ${n} listings; ${store.embeddingCount()} total`);
       output(Object.entries(store.taxonomyCounts()).flatMap(([g, rows]) => rows.slice(0, 8).map((r) => ({ group: g, label: r.label, n: r.n }))), v, ['group', 'label', 'n']);
       store.close();

@@ -25,8 +25,9 @@ export const TAXONOMY = {
     'coat': ['a photo of a long coat', 'a wool overcoat', 'a trench coat'],
     'jacket': ['a photo of a jacket', 'a leather jacket', 'a bomber jacket', 'a blazer'],
     'puffer': ['a photo of a puffer jacket', 'a down jacket'],
-    'sweater': ['a photo of a sweater', 'a knit jumper', 'a cardigan'],
-    'hoodie': ['a photo of a hoodie', 'a sweatshirt'],
+    'sweater': ['a photo of a knit sweater', 'a knit jumper', 'a cardigan'],
+    'sweatshirt': ['a photo of a crewneck sweatshirt', 'a plain long-sleeve cotton sweatshirt'],
+    'hoodie': ['a photo of a hoodie with a hood'],
     't-shirt': ['a photo of a t-shirt', 'a printed tee'],
     'shirt': ['a photo of a button-up shirt', 'a blouse'],
     'dress': ['a photo of a dress', 'an evening gown', 'a mini dress'],
@@ -61,7 +62,7 @@ export const TAXONOMY = {
     'western': ['western cowboy style fashion', 'cowboy boots or fringe'],
     'business': ['office business formal clothing', 'a tailored suit'],
     'maximalist': ['bold colourful maximalist fashion with prints', 'a loud patterned garment'],
-    'contemporary': ['a photo of a plain contemporary garment', 'a current-season fashion item with no particular style', 'a product photo of clothing'],
+    'contemporary': ['a photo of a plain contemporary garment', 'a current-season fashion item with no particular style', 'a product photo of clothing', 'a plain basic sweater or t-shirt', 'a simple everyday garment on a hanger'],
   },
   color: {
     black: ['a black item', 'a pure black garment'], white: ['a white item', 'a cream item'], beige: ['a beige item', 'a camel tan item'], brown: ['a brown item'],
@@ -71,7 +72,7 @@ export const TAXONOMY = {
   },
   material: {
     leather: ['made of smooth matte leather', 'a grained leather item'], suede: ['made of suede'], 'patent leather': ['made of very shiny glossy patent leather'], denim: ['made of denim'],
-    wool: ['made of wool', 'a tweed fabric'], cashmere: ['made of soft cashmere knit'], silk: ['made of silk satin'], cotton: ['made of cotton'],
+    wool: ['made of wool', 'a tweed fabric'], cashmere: ['made of fine soft cashmere knit with a fuzzy halo'], silk: ['made of silk satin'], cotton: ['made of cotton', 'cotton jersey sweatshirt fabric', 'a fleece fabric'],
     knit: ['a knitted fabric'], nylon: ['made of nylon technical fabric'], canvas: ['made of canvas'], shearling: ['made of shearling or fur'],
     sequin: ['covered in sequins or crystals'], lace: ['made of lace'], metal: ['made of metal', 'a gold or silver metal object'], plastic: ['made of plastic or acetate'],
   },
@@ -98,7 +99,7 @@ const normalize = (arr) => {
  * per group plus the top styles with softmax-ish confidence. `groups` shape:
  * { category: [{ label, vecs: Float32Array[] }, ...], style: [...], ... }
  */
-export const MIN_CONFIDENCE = { category: 0.2, style: 0.22, color: 0.28, material: 0.28, gender: 0.4 };
+export const MIN_CONFIDENCE = { category: 0.2, style: 0.3, color: 0.28, material: 0.35, gender: 0.4 };
 
 export function labelEmbedding(vec, groups, { topStyles = 3, temperature = 100, minConfidence = MIN_CONFIDENCE } = {}) {
   const out = {};

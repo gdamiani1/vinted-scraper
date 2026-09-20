@@ -1,5 +1,12 @@
 import { brandTier } from './rules.js';
 import { MODEL_ID } from './embed.js';
+import { dominantGarmentColor } from './color.js';
+
+async function fetchImage(url) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+  if (!res.ok) throw new Error(`image ${res.status}`);
+  return Buffer.from(await res.arrayBuffer());
+}
 
 /** Embeds and labels listings that have no embedding yet (main thumbnail only). Returns how many were done. */
 export async function embedNewItems({ store, embedder, limit = 500, concurrency = 4, logger }) {
@@ -14,8 +21,10 @@ export async function embedNewItems({ store, embedder, limit = 500, concurrency 
     while (next < todo.length) {
       const it = todo[next++];
       try {
-        const vec = await embedder.embedImage(it.thumbnail ?? it.photos?.[0]);
+        const buf = await fetchImage(it.thumbnail ?? it.photos?.[0]);
+        const vec = await embedder.embedImage(buf);
         const labels = await embedder.label(vec);
+        try { const col = await dominantGarmentColor(buf); labels.colorClip = labels.color; labels.color = col.name; labels.colorHex = col.hex; labels.colorShare = col.share; } catch { /* keep CLIP colour */ }
         store.putEmbedding(it.id, vec, MODEL_ID, labels);
         done++;
         if (done % 200 === 0) logger?.info(`[embed] ${done}/${todo.length} (${((Date.now() - t0) / 1000 / done).toFixed(2)} s each)`);
@@ -61,12 +70,15 @@ export async function broadRecheck({ scraper, store, rules, limit = 1000, days =
 export async function relabelAll({ store, embedder, logger }) {
   await embedder.ready();
   const rows = store.allEmbeddings();
+  const prevLabels = new Map(store.db.prepare('SELECT id, labels FROM items WHERE labels IS NOT NULL').all().map((r) => [r.id, JSON.parse(r.labels)]));
   let n = 0;
   store.db.exec('BEGIN');
   try {
     for (const r of rows) {
       if (r.vec.every((x) => x === 0)) continue; // placeholder for a missing image
       const labels = await embedder.label(r.vec);
+      const prev = prevLabels.get(r.id);
+      if (prev?.colorHex) { labels.colorClip = labels.color; labels.color = prev.color; labels.colorHex = prev.colorHex; labels.colorShare = prev.colorShare; }
       store.q.setLabels.run(labels.category ?? null, labels.style ?? null, labels.color ?? null, labels.material ?? null, labels.gender ?? null, JSON.stringify(labels), r.id);
       n++;
     }
@@ -74,4 +86,28 @@ export async function relabelAll({ store, embedder, logger }) {
   } catch (e) { store.db.exec('ROLLBACK'); throw e; }
   logger?.info(`[embed] relabelled ${n} listings`);
   return n;
+}
+
+/** Re-reads colour from pixels for every embedded listing (thumbnails re-downloaded, ~5 ms each to analyse). */
+export async function recolorAll({ store, concurrency = 6, logger }) {
+  const rows = store.db.prepare("SELECT id, json, labels FROM items WHERE EXISTS (SELECT 1 FROM embeddings e WHERE e.item_id = items.id) AND (labels IS NULL OR json_extract(labels, '$.colorHex') IS NULL)").all();
+  let next = 0, done = 0, failed = 0;
+  const t0 = Date.now();
+  const worker = async () => {
+    while (next < rows.length) {
+      const r = rows[next++];
+      try {
+        const it = JSON.parse(r.json);
+        const col = await dominantGarmentColor(await fetchImage(it.thumbnail ?? it.photos?.[0]));
+        const labels = r.labels ? JSON.parse(r.labels) : {};
+        labels.colorClip = labels.colorClip ?? labels.color; labels.color = col.name; labels.colorHex = col.hex; labels.colorShare = col.share;
+        store.q.setLabels.run(labels.category ?? null, labels.style ?? null, labels.color, labels.material ?? null, labels.gender ?? null, JSON.stringify(labels), r.id);
+        done++;
+        if (done % 500 === 0) logger?.info(`[recolor] ${done}/${rows.length} (${((Date.now() - t0) / 1000 / done).toFixed(2)} s each)`);
+      } catch { failed++; }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, rows.length) }, worker));
+  logger?.info(`[recolor] ${done} recoloured, ${failed} failed`);
+  return done;
 }
