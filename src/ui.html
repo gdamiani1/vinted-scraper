@@ -54,6 +54,12 @@
   .actions a.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
   .empty { color: var(--muted); text-align: center; padding: 60px 0; }
   .reasons { font-size: 12px; color: var(--muted); }
+  .tagform { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 0 13px 13px; }
+  .tagform select { width: 100%; font-size: 12px; padding: 5px 6px; }
+  .tagform .row { grid-column: 1 / -1; display: flex; gap: 6px; }
+  .tagform button { flex: 1; font: inherit; font-size: 12px; padding: 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
+  .tagform button.ghost { background: transparent; color: var(--ink); }
+  .tagged { color: var(--good); }
 </style>
 </head>
 <body>
@@ -73,7 +79,8 @@
   <label>Max price <input id="maxPrice" type="number" min="0" step="5" placeholder="any"></label>
   <label>Location <select id="location"><option value="">Any</option><option value="within">Within radius</option><option value="unknown">City hidden</option></select></label>
   <label><input id="auto" type="checkbox" checked> Auto refresh</label>
-  <span class="stat" id="stat"></span>
+  <span class="stat" id="tags" style="margin-left:auto"></span>
+  <span class="stat" id="stat" style="margin-left:12px"></span>
 </div></header>
 <main class="wrap"><div class="grid" id="grid"></div><div class="empty" id="empty" hidden>Nothing here yet. Run the watcher or a search with <code>--db</code>.</div></main>
 <script>
@@ -83,6 +90,7 @@
   const ago = (iso) => { const s = (Date.now() - new Date(iso)) / 1000; if (s < 90) return 'just now'; if (s < 5400) return `${Math.round(s / 60)} min ago`; if (s < 172800) return `${Math.round(s / 3600)} h ago`; return `${Math.round(s / 86400)} d ago`; };
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const state = { loaded: 0 };
+  let LAST = [];
   try { Object.assign(state, JSON.parse(localStorage.getItem('vw-filters') || '{}')); } catch {}
   for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location', 'q', 'category', 'style', 'color', 'material']) if (state[k] !== undefined) $(k).value = state[k];
   if (state.analyzed) $('analyzed').checked = true;
@@ -111,7 +119,8 @@
         ${it.verdict ? `<div class="verdict"><span class="risk-${esc(it.verdict.authenticity_risk)}">auth ${esc(it.verdict.authenticity_risk)}</span> · ${esc(it.verdict.condition_grade ?? '')}${it.verdict.line_or_model ? ' · ' + esc(it.verdict.line_or_model) : ''}${it.buy?.margin !== undefined ? ` · margin ${it.buy.margin >= 0 ? '+' : ''}${it.buy.margin}` : ''}<br>${esc(it.verdict.summary ?? '')}</div>` : (it.deal?.reasons?.length ? `<div class="reasons">${esc(it.deal.reasons[0])}</div>` : '')}
         <div class="meta"><span>${it.location?.sellerLogin ? '@' + esc(it.location.sellerLogin) : 'seller ' + esc(it.sellerId)}</span><span>${ago(it.firstSeen)}</span></div>
       </div>
-      <div class="actions"><a class="primary" href="${esc(it.url)}" target="_blank" rel="noopener">Open</a>${it.messageUrl ? `<a href="${esc(it.messageUrl)}" target="_blank" rel="noopener">Seller</a>` : ''}<a href="#" onclick="showSimilar(${it.id});return false" title="more like this">Similar</a></div>
+      <div class="actions"><a class="primary" href="${esc(it.url)}" target="_blank" rel="noopener">Open</a>${it.messageUrl ? `<a href="${esc(it.messageUrl)}" target="_blank" rel="noopener">Seller</a>` : ''}<a href="#" onclick="showSimilar(${it.id});return false" title="more like this">Similar</a><a href="#" class="${it.labels?.human ? 'tagged' : ''}" onclick="toggleTag(this, ${it.id});return false" title="correct the labels">${it.labels?.human ? '✓ Tagged' : 'Tag'}</a></div>
+      <div class="tagform" id="tag-${it.id}" hidden></div>
     </article>`;
   }
   async function load() {
@@ -122,6 +131,7 @@
     state.mySize = $('mySize').checked; if (state.mySize) p.set('mySize', '1');
     try { localStorage.setItem('vw-filters', JSON.stringify(state)); } catch {}
     const { items } = await (await api(state.similarTo ? '/api/similar?id=' + state.similarTo : '/api/items?' + p)).json();
+    LAST = items;
     $('grid').innerHTML = items.map(card).join('');
     $('empty').hidden = items.length > 0;
     const st = await (await api('/api/stats')).json();
@@ -137,8 +147,33 @@
       sel.value = cur;
     }
     $('stat').title = `${t.embedded} listings embedded`;
+    OPTIONS = t.options || {};
   }
   window.showSimilar = (id) => { state.similarTo = id; load(); };
+  let OPTIONS = {};
+  const FIELDS = [['category', 'category2'], ['style', 'style'], ['color', 'color2'], ['material', 'material'], ['gender', 'gender2']];
+  window.toggleTag = (link, id) => {
+    const box = $('tag-' + id);
+    if (!box.hidden) { box.hidden = true; return; }
+    const it = LAST.find((x) => x.id === id) || {};
+    box.innerHTML = FIELDS.map(([f, col]) => `<select data-field="${f}" title="${f}"><option value="">${f}: unknown</option>${(OPTIONS[f] || []).map((o) => `<option value="${esc(o)}" ${(it.labels?.human?.[f] ?? it[col]) === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`).join('') +
+      '<div class="row"><button onclick="saveTag(' + id + ')">Save</button><button class="ghost" onclick="document.getElementById(\'tag-' + id + '\').hidden=true">Cancel</button></div>';
+    box.hidden = false;
+  };
+  window.saveTag = async (id) => {
+    const box = $('tag-' + id);
+    const tags = {}; for (const sel of box.querySelectorAll('select')) tags[sel.dataset.field] = sel.value;
+    const r = await fetch(new URL('/api/tag', location.origin), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, tags }) });
+    if (!r.ok) { alert('could not save tag'); return; }
+    box.hidden = true; loadTags(); load();
+  };
+  async function loadTags() {
+    const t = await (await api('/api/tags')).json();
+    const n = Object.values(t.counts || {}).reduce((a, b) => a + b, 0);
+    const agr = Object.entries(t.agreement || {}).map(([f, a]) => a.n ? `${f} ${Math.round(100 * a.agree / a.n)}%` : null).filter(Boolean).join(', ');
+    $('tags').textContent = n ? `${n} tags${agr ? ' · auto agrees: ' + agr : ''}` : 'no tags yet — use Tag on a card to correct labels';
+  }
+  loadTags();
   loadTaxonomy();
   loadSearches().then(load);
   setInterval(() => { if ($('auto').checked && !state.similarTo && !$('q').value) { loadSearches(); loadTaxonomy(); load(); } }, 45000);

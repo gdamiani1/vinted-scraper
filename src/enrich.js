@@ -1,6 +1,7 @@
 import { brandTier } from './rules.js';
 import { MODEL_ID } from './embed.js';
 import { dominantGarmentColor } from './color.js';
+import { knnLabels } from './embed.js';
 
 async function fetchImage(url) {
   const res = await fetch(url, { signal: AbortSignal.timeout(20000) });
@@ -13,6 +14,7 @@ export async function embedNewItems({ store, embedder, limit = 500, concurrency 
   const todo = store.itemsNeedingEmbedding(limit);
   if (!todo.length) return 0;
   await embedder.ready();
+  let examples;
   let next = 0;
   let done = 0;
   let failed = 0;
@@ -23,7 +25,7 @@ export async function embedNewItems({ store, embedder, limit = 500, concurrency 
       try {
         const buf = await fetchImage(it.thumbnail ?? it.photos?.[0]);
         const vec = await embedder.embedImage(buf);
-        const labels = await embedder.label(vec);
+        const labels = { ...(await embedder.label(vec)), ...knnLabels(vec, examples ??= store.humanExamples()) };
         try { const col = await dominantGarmentColor(buf); labels.colorClip = labels.color; labels.color = col.name; labels.colorHex = col.hex; labels.colorShare = col.share; } catch { /* keep CLIP colour */ }
         store.putEmbedding(it.id, vec, MODEL_ID, labels);
         done++;
@@ -71,15 +73,16 @@ export async function relabelAll({ store, embedder, logger }) {
   await embedder.ready();
   const rows = store.allEmbeddings();
   const prevLabels = new Map(store.db.prepare('SELECT id, labels FROM items WHERE labels IS NOT NULL').all().map((r) => [r.id, JSON.parse(r.labels)]));
+  const examples = store.humanExamples();
   let n = 0;
   store.db.exec('BEGIN');
   try {
     for (const r of rows) {
       if (r.vec.every((x) => x === 0)) continue; // placeholder for a missing image
-      const labels = await embedder.label(r.vec);
+      const labels = { ...(await embedder.label(r.vec)), ...knnLabels(r.vec, examples, { exclude: r.id }) };
       const prev = prevLabels.get(r.id);
       if (prev?.colorHex) { labels.colorClip = labels.color; labels.color = prev.color; labels.colorHex = prev.colorHex; labels.colorShare = prev.colorShare; }
-      store.q.setLabels.run(labels.category ?? null, labels.style ?? null, labels.color ?? null, labels.material ?? null, labels.gender ?? null, JSON.stringify(labels), r.id);
+      store.applyLabels(r.id, labels);
       n++;
     }
     store.db.exec('COMMIT');
@@ -101,7 +104,7 @@ export async function recolorAll({ store, concurrency = 6, logger }) {
         const col = await dominantGarmentColor(await fetchImage(it.thumbnail ?? it.photos?.[0]));
         const labels = r.labels ? JSON.parse(r.labels) : {};
         labels.colorClip = labels.colorClip ?? labels.color; labels.color = col.name; labels.colorHex = col.hex; labels.colorShare = col.share;
-        store.q.setLabels.run(labels.category ?? null, labels.style ?? null, labels.color, labels.material ?? null, labels.gender ?? null, JSON.stringify(labels), r.id);
+        store.applyLabels(r.id, labels);
         done++;
         if (done % 500 === 0) logger?.info(`[recolor] ${done}/${rows.length} (${((Date.now() - t0) / 1000 / done).toFixed(2)} s each)`);
       } catch { failed++; }

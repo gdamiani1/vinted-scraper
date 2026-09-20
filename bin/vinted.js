@@ -32,6 +32,7 @@ Usage:
   vinted hunt   [--brand …] [--tier 1|2|all]    sweep luxury brands, triage by text, photo-check the best, rank buys (--from-db reuses the last sweep)
   vinted recheck [--min-buy 50] [--broad]       re-visit strong buys (or, --broad, all recent luxury listings): available, reserved, sold, removed
   vinted embed   [--limit n] [--relabel|--recolor]  local CLIP embeddings + labels; --relabel recomputes labels from vectors, --recolor re-reads colour from pixels
+  vinted calibrate                              how often automatic labels agree with your tags, per field
   vinted stats   [--days 30]                    sell-through and days-to-sell by tier, category, style, price band, brand
   vinted rescore [--db file] [--rules file]     recompute buy scores from stored verdicts (no model calls)
   vinted analyze <id|url> [--force]              vision verdict + resale buy score for one listing (--force ignores the cache)
@@ -296,6 +297,21 @@ async function main() {
       logger.info(`embedded ${n} listings; ${store.embeddingCount()} total`);
       output(Object.entries(store.taxonomyCounts()).flatMap(([g, rows]) => rows.slice(0, 8).map((r) => ({ group: g, label: r.label, n: r.n }))), v, ['group', 'label', 'n']);
       store.close();
+      break;
+    }
+    case 'calibrate': {
+      const store = openStore(v.db);
+      const { counts, pairs } = store.humanStats();
+      const rows = [];
+      for (const field of ['category', 'style', 'color', 'material', 'gender']) {
+        const ps = pairs.filter((p) => p.field === field && p.auto !== null && p.auto !== undefined);
+        const agree = ps.filter((p) => p.auto === p.human).length;
+        const confusions = {};
+        for (const p of ps) if (p.auto !== p.human) confusions[`${p.auto}→${p.human}`] = (confusions[`${p.auto}→${p.human}`] ?? 0) + 1;
+        rows.push({ field, tags: counts[field] ?? 0, compared: ps.length, agreement: ps.length ? Math.round(100 * agree / ps.length) + '%' : '-', topConfusions: Object.entries(confusions).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, n]) => `${k} (${n})`).join(', ') });
+      }
+      store.close();
+      output(rows, v, ['field', 'tags', 'compared', 'agreement', 'topConfusions']);
       break;
     }
     case 'stats': {

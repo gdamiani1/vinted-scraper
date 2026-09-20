@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { labelEmbedding, cosine, rankBySimilarity, vecToBlob, blobToVec, TAXONOMY } from '../src/embed.js';
+import { labelEmbedding, cosine, rankBySimilarity, vecToBlob, blobToVec, TAXONOMY, knnLabels } from '../src/embed.js';
 import { Store } from '../src/store.js';
 
 const unit = (arr) => { const n = Math.hypot(...arr); return Float32Array.from(arr, (x) => x / n); };
@@ -56,4 +56,35 @@ test('labelEmbedding blanks weak labels below the confidence threshold', () => {
   const out = labelEmbedding(unit([1, 0.1]), groups, { minConfidence: { color: 0.9 } });
   assert.equal(out.color, null);
   assert.ok(out.colorConfidence < 0.9);
+});
+
+test('knnLabels votes from close human-tagged neighbours and stays silent otherwise', () => {
+  const ex = (id, field, value, v) => ({ id, field, value, vec: unit(v) });
+  const examples = [ex(1, 'style', 'quiet luxury', [1, 0, 0]), ex(2, 'style', 'quiet luxury', [0.98, 0.1, 0]), ex(3, 'style', 'quiet luxury', [0.97, 0.15, 0]), ex(4, 'style', 'streetwear', [0, 1, 0]), ex(5, 'style', 'streetwear', [0.1, 0.99, 0]), ex(6, 'style', 'quiet luxury', [0.99, 0.05, 0.05])];
+  const near = knnLabels(unit([1, 0.05, 0]), examples);
+  assert.equal(near.style, 'quiet luxury');
+  assert.equal(near.styleSource, 'knn');
+  assert.deepEqual(knnLabels(unit([0, 0, 1]), examples), {}); // nothing similar enough
+  assert.deepEqual(knnLabels(unit([1, 0, 0]), examples.slice(0, 3)), {}); // too few tags for the field
+  assert.equal(knnLabels(unit([1, 0, 0]), examples, { exclude: 1 }).style, 'quiet luxury');
+});
+
+test('human tags override automatic labels and survive relabelling', () => {
+  const store = new Store(':memory:');
+  store.recordSeen('q', [{ id: 9, title: 'x', price: 10, currency: 'EUR' }]);
+  store.putEmbedding(9, unit([1, 0, 0, 0]), 'm', { category: 'shirt', style: 'y2k', color: 'beige' });
+  store.setHumanLabel(9, 'category', 'sweatshirt');
+  store.setHumanLabel(9, 'style', null);
+  let [row] = store.list({ ids: [9] });
+  assert.equal(row.category2, 'sweatshirt');
+  assert.equal(row.style, undefined);
+  assert.equal(row.labels.human.category, 'sweatshirt');
+  store.applyLabels(9, { category: 'shirt', style: 'y2k', color: 'grey' }); // an automatic relabel
+  [row] = store.list({ ids: [9] });
+  assert.equal(row.category2, 'sweatshirt'); // human wins
+  assert.equal(row.color2, 'grey'); // untagged field follows the automatic label
+  assert.equal(row.labels.autoCategory, 'shirt'); // automatic guess kept for calibration
+  assert.deepEqual(store.humanStats().counts, { category: 1, style: 1 });
+  assert.equal(store.humanExamples().length, 2);
+  store.close();
 });

@@ -204,3 +204,25 @@ export function rankBySimilarity(vec, rows, { limit = 60, exclude } = {}) {
 
 export const vecToBlob = (vec) => Buffer.from(Float32Array.from(vec).buffer);
 export const blobToVec = (blob) => new Float32Array(blob.buffer, blob.byteOffset, blob.byteLength / 4);
+
+/**
+ * Nearest-neighbour labels from human-tagged examples: for each field with enough tags, the top-k
+ * most similar tagged listings vote. Overrides the zero-shot label only when the neighbours are
+ * close and agree, so a handful of tags can already correct systematic mistakes.
+ */
+export function knnLabels(vec, examples, { k = 5, minExamples = 5, minSim = 0.82, minAgreement = 0.6, exclude } = {}) {
+  const out = {};
+  const byField = new Map();
+  for (const ex of examples ?? []) { if (ex.id === exclude || ex.value === null) continue; (byField.get(ex.field) ?? byField.set(ex.field, []).get(ex.field)).push(ex); }
+  for (const [field, list] of byField) {
+    if (list.length < minExamples) continue;
+    const scored = list.map((ex) => ({ value: ex.value, sim: cosine(vec, ex.vec) })).sort((a, b) => b.sim - a.sim).slice(0, k).filter((x) => x.sim >= minSim);
+    if (!scored.length) continue;
+    const votes = new Map();
+    for (const x of scored) votes.set(x.value, (votes.get(x.value) ?? 0) + x.sim);
+    const total = [...votes.values()].reduce((a, b) => a + b, 0);
+    const [value, weight] = [...votes.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (weight / total >= minAgreement) { out[field] = value; out[`${field}Source`] = 'knn'; }
+  }
+  return out;
+}

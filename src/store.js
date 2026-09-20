@@ -34,6 +34,7 @@ export class Store {
       CREATE TABLE IF NOT EXISTS geocode (key TEXT PRIMARY KEY, lat REAL, lon REAL, name TEXT, country_code TEXT, fetched_at INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS verdicts (item_id INTEGER NOT NULL, model TEXT NOT NULL, json TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (item_id, model));
       CREATE TABLE IF NOT EXISTS embeddings (item_id INTEGER PRIMARY KEY, vec BLOB NOT NULL, model TEXT NOT NULL, created_at TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS human_labels (item_id INTEGER NOT NULL, field TEXT NOT NULL, value TEXT, created_at TEXT NOT NULL, PRIMARY KEY (item_id, field));
     `);
     for (const col of ['score REAL', 'location TEXT', 'search_name TEXT', 'buy_score REAL', 'buy TEXT', 'potential REAL', 'potential_json TEXT', 'status TEXT', 'status_checked_at TEXT', 'gone_at TEXT', 'category2 TEXT', 'style TEXT', 'color2 TEXT', 'material TEXT', 'gender2 TEXT', 'labels TEXT']) {
       try { this.db.exec(`ALTER TABLE items ADD COLUMN ${col}`); } catch { /* already there */ }
@@ -74,6 +75,11 @@ export class Store {
       embCount: this.db.prepare('SELECT COUNT(*) n FROM embeddings'),
       taxonomyCounts: this.db.prepare("SELECT 'category' AS g, category2 AS label, COUNT(*) n FROM items WHERE category2 IS NOT NULL GROUP BY category2 UNION ALL SELECT 'style', style, COUNT(*) FROM items WHERE style IS NOT NULL GROUP BY style UNION ALL SELECT 'color', color2, COUNT(*) FROM items WHERE color2 IS NOT NULL GROUP BY color2 UNION ALL SELECT 'material', material, COUNT(*) FROM items WHERE material IS NOT NULL GROUP BY material ORDER BY g, n DESC"),
       broad: this.db.prepare("SELECT json, status, status_checked_at, first_seen FROM items WHERE first_seen >= ? AND COALESCE(status,'available') NOT IN ('sold','removed') AND (status_checked_at IS NULL OR status_checked_at < ?) ORDER BY status_checked_at IS NOT NULL, first_seen DESC LIMIT ?"),
+      putHuman: this.db.prepare('INSERT OR REPLACE INTO human_labels (item_id, field, value, created_at) VALUES (?,?,?,?)'),
+      humanFor: this.db.prepare('SELECT field, value FROM human_labels WHERE item_id = ?'),
+      humanAll: this.db.prepare('SELECT h.item_id, h.field, h.value, e.vec FROM human_labels h JOIN embeddings e ON e.item_id = h.item_id'),
+      humanStats: this.db.prepare('SELECT field, COUNT(*) n FROM human_labels GROUP BY field'),
+      humanVsAuto: this.db.prepare("SELECT h.field, h.value AS human, CASE h.field WHEN 'category' THEN json_extract(i.labels,'$.autoCategory') WHEN 'style' THEN json_extract(i.labels,'$.autoStyle') WHEN 'color' THEN json_extract(i.labels,'$.autoColor') WHEN 'material' THEN json_extract(i.labels,'$.autoMaterial') WHEN 'gender' THEN json_extract(i.labels,'$.autoGender') END AS auto FROM human_labels h JOIN items i ON i.id = h.item_id"),
       sellRows: this.db.prepare("SELECT brand, price, currency, category2, style, color2, first_seen, status, gone_at, buy_score FROM items WHERE first_seen >= ?"),
     };
   }
@@ -186,9 +192,41 @@ export class Store {
     return this.q.pending.all(minUpside, limit).map((r) => JSON.parse(r.json));
   }
 
+  /** Records a human tag and applies it to the item immediately. */
+  setHumanLabel(itemId, field, value, now = new Date().toISOString()) {
+    const col = { category: 'category2', style: 'style', color: 'color2', material: 'material', gender: 'gender2' }[field];
+    if (!col) throw new Error(`unknown field ${field}`);
+    this.q.putHuman.run(itemId, field, value ?? null, now);
+    const row = this.db.prepare('SELECT labels FROM items WHERE id = ?').get(itemId);
+    const labels = row?.labels ? JSON.parse(row.labels) : {};
+    labels.human = { ...(labels.human ?? {}), [field]: value ?? null };
+    this.db.prepare(`UPDATE items SET ${col} = ?, labels = ? WHERE id = ?`).run(value ?? null, JSON.stringify(labels), itemId);
+  }
+
+  humanLabels(itemId) {
+    return Object.fromEntries(this.q.humanFor.all(itemId).map((r) => [r.field, r.value]));
+  }
+
+  /** Every human tag with its embedding, for nearest-neighbour labelling. */
+  humanExamples() {
+    return this.q.humanAll.all().map((r) => ({ id: r.item_id, field: r.field, value: r.value, vec: new Float32Array(r.vec.buffer, r.vec.byteOffset, r.vec.byteLength / 4) }));
+  }
+
+  humanStats() {
+    return { counts: Object.fromEntries(this.q.humanStats.all().map((r) => [r.field, r.n])), pairs: this.q.humanVsAuto.all() };
+  }
+
   putEmbedding(itemId, vec, model, labels) {
     this.q.putEmb.run(itemId, Buffer.from(Float32Array.from(vec).buffer), model, new Date().toISOString());
-    if (labels) this.q.setLabels.run(labels.category ?? null, labels.style ?? null, labels.color ?? null, labels.material ?? null, labels.gender ?? null, JSON.stringify(labels), itemId);
+    if (labels) this.applyLabels(itemId, labels);
+  }
+
+  /** Writes automatic labels, keeping any human tags on top and remembering the automatic guess for calibration. */
+  applyLabels(itemId, labels) {
+    const human = this.humanLabels(itemId);
+    const merged = { ...labels, autoCategory: labels.category ?? null, autoStyle: labels.style ?? null, autoColor: labels.color ?? null, autoMaterial: labels.material ?? null, autoGender: labels.gender ?? null, human: Object.keys(human).length ? human : undefined };
+    for (const [f, v] of Object.entries(human)) merged[f] = v;
+    this.q.setLabels.run(merged.category ?? null, merged.style ?? null, merged.color ?? null, merged.material ?? null, merged.gender ?? null, JSON.stringify(merged), itemId);
   }
 
   itemsNeedingEmbedding(limit = 500) {

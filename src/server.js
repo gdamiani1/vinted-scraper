@@ -5,6 +5,8 @@ import { formatLocation } from './geo.js';
 import { loadRules, fitsMySize } from './rules.js';
 import { Embedder, rankBySimilarity } from './embed.js';
 import { sellThrough } from './stats.js';
+import { TAXONOMY } from './embed.js';
+import { COLOR_NAMES } from './color.js';
 import { existsSync } from 'node:fs';
 
 const UI_PATH = fileURLToPath(new URL('./ui.html', import.meta.url));
@@ -76,7 +78,24 @@ export function createDashboard({ store, domain, logger, rules, password = proce
         const items = store.list({ ids: ranked.map((r) => r.id), limit: 100 }).sort((a, b) => order.get(a.id) - order.get(b.id));
         return json(res, 200, { items: decorate(items).map((it) => ({ ...it, similarity: ranked.find((r) => r.id === it.id)?.score })) });
       }
-      if (url.pathname === '/api/taxonomy') return json(res, 200, { ...store.taxonomyCounts(), embedded: store.embeddingCount() });
+      if (url.pathname === '/api/taxonomy') return json(res, 200, { ...store.taxonomyCounts(), embedded: store.embeddingCount(), options: { category: Object.keys(TAXONOMY.category), style: Object.keys(TAXONOMY.style).filter((x) => x !== 'contemporary'), color: COLOR_NAMES, material: Object.keys(TAXONOMY.material), gender: Object.keys(TAXONOMY.gender) } });
+      if (url.pathname === '/api/tag' && req.method === 'POST') {
+        let body = '';
+        req.on('data', (c) => { body += c; if (body.length > 10000) req.destroy(); });
+        return req.on('end', () => {
+          try {
+            const { id, tags } = JSON.parse(body);
+            for (const [field, value] of Object.entries(tags ?? {})) store.setHumanLabel(Number(id), field, value === '' ? null : value);
+            json(res, 200, { ok: true, human: store.humanLabels(Number(id)) });
+          } catch (e) { json(res, 400, { error: e.message }); }
+        });
+      }
+      if (url.pathname === '/api/tags') {
+        const { counts, pairs } = store.humanStats();
+        const agreement = {};
+        for (const p of pairs) { const a = (agreement[p.field] ??= { n: 0, agree: 0 }); if (p.auto !== null && p.auto !== undefined) { a.n++; if (p.auto === p.human) a.agree++; } }
+        return json(res, 200, { counts, agreement });
+      }
       if (url.pathname === '/api/sellthrough') return json(res, 200, sellThrough(store.sellThroughRows(Number(url.searchParams.get('days') || 30)), { rules }));
       if (url.pathname === '/api/searches') return json(res, 200, { searches: store.searches() });
       if (url.pathname === '/api/stats') return json(res, 200, { items: store.count(), verdicts: store.verdictCount(), domain });
