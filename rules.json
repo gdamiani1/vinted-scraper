@@ -1,0 +1,308 @@
+{
+  "$comment": "Resale rules. Copy to rules.json and edit; weights are 0-1 multipliers on sellability.",
+  "brands": {
+    "tier1": [
+      "Chanel",
+      "Hermès",
+      "Louis Vuitton",
+      "Dior",
+      "Prada",
+      "Bottega Veneta",
+      "Loewe",
+      "Saint Laurent",
+      "Celine",
+      "Miu Miu",
+      "Gucci",
+      "Fendi",
+      "Balenciaga",
+      "The Row",
+      "Cartier",
+      "Van Cleef & Arpels",
+      "Rolex"
+    ],
+    "tier2": [
+      "Moncler",
+      "Burberry",
+      "Acne Studios",
+      "Maison Margiela",
+      "Rick Owens",
+      "Valentino",
+      "Givenchy",
+      "Alexander McQueen",
+      "Jacquemus",
+      "Off-White",
+      "Stone Island",
+      "Ganni",
+      "Max Mara",
+      "Versace",
+      "Dolce & Gabbana",
+      "Balmain",
+      "Chloé",
+      "Marni",
+      "Jil Sander",
+      "Lemaire",
+      "Toteme",
+      "Khaite",
+      "Amiri",
+      "Palm Angels",
+      "Isabel Marant",
+      "Golden Goose",
+      "Canada Goose",
+      "Ralph Lauren Purple Label",
+      "Brunello Cucinelli",
+      "Loro Piana",
+      "Zegna",
+      "Tom Ford",
+      "Alaïa",
+      "Coperni",
+      "Diesel",
+      "Vivienne Westwood",
+      "Comme des Garçons",
+      "Yohji Yamamoto",
+      "Issey Miyake",
+      "Dries Van Noten",
+      "Ann Demeulemeester",
+      "Raf Simons",
+      "Helmut Lang",
+      "Our Legacy",
+      "Stüssy",
+      "Supreme",
+      "Nike x",
+      "Adidas x",
+      "New Balance x",
+      "Salomon x",
+      "Asics x"
+    ]
+  },
+  "brandWeight": {
+    "tier1": 1,
+    "tier2": 0.75,
+    "other": 0.2
+  },
+  "categories": {
+    "bag": 1,
+    "small_leather_goods": 0.9,
+    "shoes": 0.85,
+    "outerwear": 0.85,
+    "jewellery": 0.8,
+    "accessory": 0.7,
+    "knitwear": 0.65,
+    "dress": 0.55,
+    "skirt": 0.45,
+    "trousers": 0.45,
+    "top": 0.4,
+    "other": 0.3
+  },
+  "sizes": {
+    "clothing": {
+      "letters": {
+        "XXS": 0.5,
+        "XS": 0.9,
+        "S": 1,
+        "M": 1,
+        "L": 0.8,
+        "XL": 0.4,
+        "XXL": 0.15,
+        "XXXL": 0.05,
+        "4XL": 0.03
+      },
+      "eu": [
+        [
+          32,
+          0.6
+        ],
+        [
+          34,
+          0.9
+        ],
+        [
+          36,
+          1
+        ],
+        [
+          38,
+          1
+        ],
+        [
+          40,
+          0.9
+        ],
+        [
+          42,
+          0.7
+        ],
+        [
+          44,
+          0.4
+        ],
+        [
+          46,
+          0.2
+        ],
+        [
+          48,
+          0.1
+        ],
+        [
+          50,
+          0.05
+        ]
+      ],
+      "unknown": 0.6
+    },
+    "shoes": {
+      "eu": [
+        [
+          35,
+          0.5
+        ],
+        [
+          36,
+          0.9
+        ],
+        [
+          37,
+          1
+        ],
+        [
+          38,
+          1
+        ],
+        [
+          39,
+          1
+        ],
+        [
+          40,
+          0.9
+        ],
+        [
+          41,
+          0.9
+        ],
+        [
+          42,
+          1
+        ],
+        [
+          43,
+          1
+        ],
+        [
+          44,
+          0.9
+        ],
+        [
+          45,
+          0.7
+        ],
+        [
+          46,
+          0.4
+        ],
+        [
+          47,
+          0.2
+        ]
+      ],
+      "unknown": 0.6
+    }
+  },
+  "sizedCategories": [
+    "outerwear",
+    "knitwear",
+    "dress",
+    "skirt",
+    "trousers",
+    "top",
+    "shoes"
+  ],
+  "priceFloorEur": 15,
+  "sellFeePct": 0.12,
+  "targetMarginPct": 0.4,
+  "conditionMultiplier": {
+    "new": 1,
+    "excellent": 0.95,
+    "very_good": 0.85,
+    "good": 0.7,
+    "fair": 0.5,
+    "poor": 0.3
+  },
+  "luxuryPriceFloorEur": 60,
+  "packagingWords": [
+    "tüte",
+    "tuete",
+    "tragetasche",
+    "verpackung",
+    "papiertüte",
+    "paper bag",
+    "shopping bag",
+    "shopper bag",
+    "dust bag",
+    "dustbag",
+    "staubbeutel",
+    "karton",
+    "box only",
+    "leere box",
+    "empty box",
+    "schachtel",
+    "geschenkbox",
+    "gift box",
+    "sample",
+    "probe",
+    "miniatur",
+    "hanger",
+    "kleiderbügel",
+    "ribbon",
+    "schleife",
+    "band",
+    "catalog",
+    "katalog",
+    "magazin",
+    "magazine",
+    "buch",
+    "book",
+    "sticker",
+    "aufkleber",
+    "tissue",
+    "seidenpapier",
+    "vrećica",
+    "kutija",
+    "torebka papierowa",
+    "pudełko",
+    "sacchetto",
+    "scatola",
+    "sac papier",
+    "boîte"
+  ],
+  "mySizes": {
+    "shoesEu": [
+      44.5,
+      45,
+      45.5,
+      46
+    ],
+    "shoesCm": [
+      29,
+      29.5,
+      30
+    ],
+    "clothing": [
+      "L",
+      "XL"
+    ],
+    "clothingEu": [
+      50,
+      52
+    ],
+    "waist": [
+      33,
+      34
+    ],
+    "inseam": [
+      34
+    ],
+    "note": "190 cm / 90 kg, foot 29.5 cm",
+    "gender": "men"
+  }
+}

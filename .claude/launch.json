@@ -1,0 +1,6 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "dashboard", "runtimeExecutable": "node", "runtimeArgs": ["--no-warnings=ExperimentalWarning", "bin/vinted.js", "serve", "--db", "vinted.db", "--port", "3210"], "port": 3210 }
+  ]
+}

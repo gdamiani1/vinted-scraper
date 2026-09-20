@@ -1,0 +1,60 @@
+{
+  "domain": "at",
+  "intervalSec": 120,
+  "db": "vinted.db",
+  "webhook": "",
+  "mac": true,
+  "minScore": 0,
+  "pages": 2,
+  "searches": [
+    {
+      "name": "Chanel bags",
+      "query": "chanel",
+      "brand": "Chanel",
+      "order": "newest",
+      "exclude": [
+        "parf|perfume|dupe|style|inspired"
+      ]
+    },
+    {
+      "name": "Nike Air Max under 40",
+      "query": "nike air max",
+      "brand": "Nike",
+      "priceTo": 40,
+      "condition": [
+        "new",
+        "very good"
+      ],
+      "order": "newest",
+      "include": [
+        "air ?max"
+      ],
+      "exclude": [
+        "majica|tee|shirt|jersey"
+      ]
+    },
+    {
+      "name": "Levis 501 W32",
+      "query": "levis 501 w32",
+      "category": "traperice",
+      "priceTo": 25,
+      "minScore": 30
+    }
+  ],
+  "near": "Wien",
+  "radiusKm": 50,
+  "strictLocation": false,
+  "telegram": {
+    "token": "",
+    "chatId": "",
+    "minScore": 60
+  },
+  "ai": {
+    "enabled": false,
+    "model": "qwen/qwen3.8-flash",
+    "maxPerRun": 30,
+    "minBuy": 50,
+    "allBrands": false
+  },
+  "rules": "rules.json"
+}

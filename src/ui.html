@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vinted Watch</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --ink: #1c1b19; --muted: #6b6963; --line: #e6e3dc;
+    --accent: #0f766e; --accent-ink: #ffffff; --warn: #b45309; --good: #15803d; --chip: #eeece6;
+    --radius: 14px; --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px -12px rgba(0,0,0,.15);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141413; --panel: #1e1d1b; --ink: #ece9e2; --muted: #9c9890; --line: #2b2a27;
+      --accent: #2dd4bf; --accent-ink: #0b1a18; --warn: #fbbf24; --good: #4ade80; --chip: #2a2926;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px -14px rgba(0,0,0,.7);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.45 -apple-system, "Inter", "Segoe UI", system-ui, sans-serif; }
+  header { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 0 16px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px 0; }
+  h1 { font-size: 17px; margin: 0 12px 0 0; letter-spacing: .2px; display: flex; align-items: center; gap: 8px; }
+  h1 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent); }
+  select, input { background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; font: inherit; }
+  input[type=number] { width: 92px; }
+  label { color: var(--muted); font-size: 13px; display: inline-flex; gap: 6px; align-items: center; }
+  .stat { margin-left: auto; color: var(--muted); font-size: 13px; }
+  main { padding: 18px 0 60px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; transition: transform .12s ease; }
+  .card:hover { transform: translateY(-2px); }
+  .photo { position: relative; aspect-ratio: 3/4; background: var(--chip); }
+  .photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .score { position: absolute; top: 10px; left: 10px; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 13px; padding: 4px 9px; border-radius: 999px; }
+  .score.hot { background: var(--warn); color: #fff; }
+  .buy { position: absolute; bottom: 10px; left: 10px; background: #7c3aed; color: #fff; font-weight: 700; font-size: 13px; padding: 4px 9px; border-radius: 999px; }
+  .buy.hot { background: #dc2626; }
+  .verdict { font-size: 12px; color: var(--ink); background: var(--chip); border-radius: 8px; padding: 6px 8px; }
+  .risk-high { color: #dc2626; font-weight: 600; } .risk-medium { color: var(--warn); } .risk-low { color: var(--good); }
+  .new { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,.6); color: #fff; font-size: 11px; padding: 3px 7px; border-radius: 999px; letter-spacing: .3px; }
+  .body { padding: 12px 13px 13px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .price { font-weight: 700; font-size: 18px; display: flex; align-items: baseline; gap: 8px; }
+  .price small { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .title { font-size: 14px; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+  .chip { background: var(--chip); color: var(--muted); font-size: 12px; padding: 2px 8px; border-radius: 999px; }
+  .chip.loc { color: var(--good); }
+  .meta { color: var(--muted); font-size: 12px; margin-top: auto; padding-top: 6px; display: flex; justify-content: space-between; gap: 8px; }
+  .actions { display: flex; gap: 8px; padding: 0 13px 13px; }
+  .actions a { flex: 1; text-align: center; text-decoration: none; font-size: 13px; padding: 7px 8px; border-radius: 10px; border: 1px solid var(--line); color: var(--ink); }
+  .actions a.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+  .empty { color: var(--muted); text-align: center; padding: 60px 0; }
+  .reasons { font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header><div class="wrap bar">
+  <h1><span class="dot"></span>Vinted Watch</h1>
+  <label>Search <select id="search"><option value="">All</option></select></label>
+  <label>Sort <select id="sort"><option value="newest">Newest</option><option value="buy">Best buys (AI)</option><option value="potential">Potential (triage)</option><option value="score">Best deals</option><option value="price">Cheapest</option><option value="updated">Recently seen</option></select></label>
+  <label>Min score <input id="minScore" type="number" min="0" max="100" step="5" value="0"></label>
+  <label>Min buy <input id="minBuy" type="number" min="0" max="100" step="5" placeholder="any"></label>
+  <label><input id="analyzed" type="checkbox"> Analyzed only</label>
+  <label><input id="mySize" type="checkbox"> My size</label>
+  <label>Max price <input id="maxPrice" type="number" min="0" step="5" placeholder="any"></label>
+  <label>Location <select id="location"><option value="">Any</option><option value="within">Within radius</option><option value="unknown">City hidden</option></select></label>
+  <label><input id="auto" type="checkbox" checked> Auto refresh</label>
+  <span class="stat" id="stat"></span>
+</div></header>
+<main class="wrap"><div class="grid" id="grid"></div><div class="empty" id="empty" hidden>Nothing here yet. Run the watcher or a search with <code>--db</code>.</div></main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n, c) => n === undefined || n === null ? '?' : `${Number(n).toFixed(2)} ${c ?? ''}`.trim();
+  const ago = (iso) => { const s = (Date.now() - new Date(iso)) / 1000; if (s < 90) return 'just now'; if (s < 5400) return `${Math.round(s / 60)} min ago`; if (s < 172800) return `${Math.round(s / 3600)} h ago`; return `${Math.round(s / 86400)} d ago`; };
+  const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const state = { loaded: 0 };
+  try { Object.assign(state, JSON.parse(localStorage.getItem('vw-filters') || '{}')); } catch {}
+  for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location']) if (state[k] !== undefined) $(k).value = state[k];
+  if (state.analyzed) $('analyzed').checked = true;
+  if (state.mySize) $('mySize').checked = true;
+
+  async function loadSearches() {
+    const { searches } = await (await fetch('/api/searches')).json();
+    const sel = $('search'); const cur = sel.value;
+    sel.innerHTML = '<option value="">All searches</option>' + searches.map((s) => `<option value="${esc(s.key)}">${esc(s.key)} (${s.n})</option>`).join('');
+    sel.value = cur;
+  }
+  function card(it) {
+    const score = it.score ?? it.deal?.score;
+    const isNew = Date.now() - new Date(it.firstSeen) < 6 * 3600e3;
+    return `<article class="card">
+      <div class="photo">${it.thumbnail ? `<img loading="lazy" src="${esc(it.thumbnail)}" alt="">` : ''}
+        ${score !== undefined ? `<span class="score ${score >= 60 ? 'hot' : ''}" title="deal score: price vs comparable listings (no AI)">deal ${score}</span>` : ''}
+        ${isNew ? '<span class="new">NEW</span>' : ''}
+        ${it.buy ? `<span class="buy ${it.buy.score >= 60 ? 'hot' : ''}" title="resale buy score">buy ${it.buy.score}</span>` : (it.potential !== undefined && it.potential >= 0 ? `<span class="buy" style="background:#475569" title="triage estimate from text only, awaiting photo check">potential +${Math.round(it.potential * 100)}%</span>` : '')}</div>
+      <div class="body">
+        <div class="price">${fmt(it.price, it.currency)} ${it.totalPrice ? `<small>${fmt(it.totalPrice, it.currency)} total</small>` : ''}</div>
+        <div class="title" title="${esc(it.title)}">${esc(it.title)}</div>
+        <div class="chips">${[it.brand, it.size, it.condition].filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join('')}
+          ${it.locationText ? `<span class="chip loc">${esc(it.locationText)}</span>` : ''}</div>
+        ${!it.verdict && it.triage?.reason ? `<div class="reasons">${esc(it.triage.reason)}</div>` : ''}
+        ${it.verdict ? `<div class="verdict"><span class="risk-${esc(it.verdict.authenticity_risk)}">auth ${esc(it.verdict.authenticity_risk)}</span> · ${esc(it.verdict.condition_grade ?? '')}${it.verdict.line_or_model ? ' · ' + esc(it.verdict.line_or_model) : ''}${it.buy?.margin !== undefined ? ` · margin ${it.buy.margin >= 0 ? '+' : ''}${it.buy.margin}` : ''}<br>${esc(it.verdict.summary ?? '')}</div>` : (it.deal?.reasons?.length ? `<div class="reasons">${esc(it.deal.reasons[0])}</div>` : '')}
+        <div class="meta"><span>${it.location?.sellerLogin ? '@' + esc(it.location.sellerLogin) : 'seller ' + esc(it.sellerId)}</span><span>${ago(it.firstSeen)}</span></div>
+      </div>
+      <div class="actions"><a class="primary" href="${esc(it.url)}" target="_blank" rel="noopener">Open</a>${it.messageUrl ? `<a href="${esc(it.messageUrl)}" target="_blank" rel="noopener">Seller</a>` : ''}</div>
+    </article>`;
+  }
+  async function load() {
+    const p = new URLSearchParams();
+    for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location']) { state[k] = $(k).value; if ($(k).value !== '') p.set(k, $(k).value); }
+    state.analyzed = $('analyzed').checked; if (state.analyzed) p.set('analyzed', '1');
+    state.mySize = $('mySize').checked; if (state.mySize) p.set('mySize', '1');
+    try { localStorage.setItem('vw-filters', JSON.stringify(state)); } catch {}
+    const { items } = await (await fetch('/api/items?' + p)).json();
+    $('grid').innerHTML = items.map(card).join('');
+    $('empty').hidden = items.length > 0;
+    const st = await (await fetch('/api/stats')).json();
+    $('stat').textContent = `${items.length} shown · ${st.items} tracked · ${st.verdicts} analyzed · ${new Date().toLocaleTimeString()}`;
+  }
+  for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location', 'analyzed', 'mySize']) $(k).addEventListener('change', load);
+  loadSearches().then(load);
+  setInterval(() => { if ($('auto').checked) { loadSearches(); load(); } }, 45000);
+</script>
+</body>
+</html>

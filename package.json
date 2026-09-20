@@ -1,0 +1,15 @@
+{
+  "name": "vinted-scraper",
+  "version": "1.0.0",
+  "description": "Smart, dependency-free Vinted scraper: search, item details, seller info, deal scoring, watch mode with alerts, and JSON/CSV export.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=22.13" },
+  "bin": { "vinted": "./bin/vinted.js" },
+  "main": "./src/index.js",
+  "exports": { ".": "./src/index.js" },
+  "scripts": {
+    "test": "node --test --no-warnings=ExperimentalWarning \"test/**/*.test.js\"",
+    "vinted": "node --no-warnings=ExperimentalWarning bin/vinted.js"
+  }
+}

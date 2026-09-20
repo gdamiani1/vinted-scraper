@@ -1,0 +1,11 @@
+node_modules/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+out/
+.env
+vinted.config.json
+
+hunt-results.json
+hunt-log.txt
