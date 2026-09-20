@@ -112,6 +112,25 @@ or `VISION_BASE_URL`/`VISION_API_KEY` for DashScope, Zhipu, Gemini's compatibili
 server. Verdicts are cached per listing and model in SQLite, so re-runs and the dashboard are free.
 The dashboard's "Best buys (AI)" sort and "Analyzed only" filter show verdicts on each card.
 
+### Categorisation, search and sell-through (local embeddings)
+
+Every listing's main photo is embedded with CLIP running locally through Transformers.js (no API, no
+cost, ~30 ms per image on Apple silicon; models download once to `~/.cache/vinted-scraper/models`).
+From the vector, zero-shot prompts assign a **category** (handbag, crossbody bag, sneakers, boots, puffer,
+jeans, …), **style** (quiet luxury, streetwear, y2k, vintage, gorpcore, …), **colour**, **material** and
+gender presentation, each blanked when the model is not confident. The watcher labels new arrivals every
+cycle; `vinted embed` backfills, `vinted embed --relabel` recomputes labels after taxonomy edits in
+`src/embed.js`.
+
+The dashboard uses this for the **Find** box (semantic search: "black leather bag with gold chain",
+"mens suede chelsea boots"), the category/style/colour/material filters, and a **Similar** button on
+every card. The API exposes `/api/items?q=…`, `/api/similar?id=…`, `/api/taxonomy`.
+
+**Sell-through.** The watcher re-visits strong buys hourly and, at 02:30, every luxury-tier listing seen
+in the last 14 days (up to 1,000 a night), recording sold / reserved / removed. `vinted stats` turns
+that into sell-through at 3, 7 and 14 days and median days-to-sell by tier, category, style, price band
+and brand (also `/api/sellthrough`). Give it two to four weeks before reading trends into it.
+
 ### Location filter
 
 Vinted has no distance filter of its own, so `--near` works after the fact: each listing's seller profile

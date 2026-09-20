@@ -18,5 +18,8 @@
     "test": "node --test --no-warnings=ExperimentalWarning \"test/**/*.test.js\"",
     "vinted": "node --no-warnings=ExperimentalWarning bin/vinted.js",
     "start": "node --no-warnings=ExperimentalWarning bin/vinted.js run --config deploy/railway.config.json"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.3.0"
   }
 }

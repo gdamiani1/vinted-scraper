@@ -60,6 +60,11 @@
 <header><div class="wrap bar">
   <h1><span class="dot"></span>Vinted Watch</h1>
   <label>Search <select id="search"><option value="">All</option></select></label>
+  <label>Find <input id="q" type="search" placeholder="e.g. black leather bag gold chain" style="width:230px"></label>
+  <label>Category <select id="category"><option value="">Any</option></select></label>
+  <label>Style <select id="style"><option value="">Any</option></select></label>
+  <label>Colour <select id="color"><option value="">Any</option></select></label>
+  <label>Material <select id="material"><option value="">Any</option></select></label>
   <label>Sort <select id="sort"><option value="newest">Newest</option><option value="buy">Best buys (AI)</option><option value="potential">Potential (triage)</option><option value="score">Best deals</option><option value="price">Cheapest</option><option value="updated">Recently seen</option></select></label>
   <label>Min score <input id="minScore" type="number" min="0" max="100" step="5" value="0"></label>
   <label>Min buy <input id="minBuy" type="number" min="0" max="100" step="5" placeholder="any"></label>
@@ -78,7 +83,7 @@
   const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const state = { loaded: 0 };
   try { Object.assign(state, JSON.parse(localStorage.getItem('vw-filters') || '{}')); } catch {}
-  for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location']) if (state[k] !== undefined) $(k).value = state[k];
+  for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location', 'q', 'category', 'style', 'color', 'material']) if (state[k] !== undefined) $(k).value = state[k];
   if (state.analyzed) $('analyzed').checked = true;
   if (state.mySize) $('mySize').checked = true;
 
@@ -99,30 +104,43 @@
       <div class="body">
         <div class="price">${fmt(it.price, it.currency)} ${it.totalPrice ? `<small>${fmt(it.totalPrice, it.currency)} total</small>` : ''}</div>
         <div class="title" title="${esc(it.title)}">${esc(it.title)}</div>
-        <div class="chips">${[it.brand, it.size, it.condition].filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join('')}
+        <div class="chips">${[it.brand, it.size, it.condition].filter(Boolean).map((c) => `<span class="chip">${esc(c)}</span>`).join('')}${[it.category2, it.style, it.color2, it.material].filter(Boolean).map((c) => `<span class="chip" style="opacity:.75">${esc(c)}</span>`).join('')}${it.similarity !== undefined ? `<span class="chip loc">${Math.round(it.similarity * 100)}% match</span>` : ''}
           ${it.locationText ? `<span class="chip loc">${esc(it.locationText)}</span>` : ''}</div>
         ${!it.verdict && it.triage?.reason ? `<div class="reasons">${esc(it.triage.reason)}</div>` : ''}
         ${it.verdict ? `<div class="verdict"><span class="risk-${esc(it.verdict.authenticity_risk)}">auth ${esc(it.verdict.authenticity_risk)}</span> · ${esc(it.verdict.condition_grade ?? '')}${it.verdict.line_or_model ? ' · ' + esc(it.verdict.line_or_model) : ''}${it.buy?.margin !== undefined ? ` · margin ${it.buy.margin >= 0 ? '+' : ''}${it.buy.margin}` : ''}<br>${esc(it.verdict.summary ?? '')}</div>` : (it.deal?.reasons?.length ? `<div class="reasons">${esc(it.deal.reasons[0])}</div>` : '')}
         <div class="meta"><span>${it.location?.sellerLogin ? '@' + esc(it.location.sellerLogin) : 'seller ' + esc(it.sellerId)}</span><span>${ago(it.firstSeen)}</span></div>
       </div>
-      <div class="actions"><a class="primary" href="${esc(it.url)}" target="_blank" rel="noopener">Open</a>${it.messageUrl ? `<a href="${esc(it.messageUrl)}" target="_blank" rel="noopener">Seller</a>` : ''}</div>
+      <div class="actions"><a class="primary" href="${esc(it.url)}" target="_blank" rel="noopener">Open</a>${it.messageUrl ? `<a href="${esc(it.messageUrl)}" target="_blank" rel="noopener">Seller</a>` : ''}<a href="#" onclick="showSimilar(${it.id});return false" title="more like this">Similar</a></div>
     </article>`;
   }
   async function load() {
     const p = new URLSearchParams();
-    for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location']) { state[k] = $(k).value; if ($(k).value !== '') p.set(k, $(k).value); }
+    for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location', 'q', 'category', 'style', 'color', 'material']) { state[k] = $(k).value; if ($(k).value !== '') p.set(k, $(k).value); }
+    if (state.similarTo) { p.set('similar', state.similarTo); }
     state.analyzed = $('analyzed').checked; if (state.analyzed) p.set('analyzed', '1');
     state.mySize = $('mySize').checked; if (state.mySize) p.set('mySize', '1');
     try { localStorage.setItem('vw-filters', JSON.stringify(state)); } catch {}
-    const { items } = await (await fetch('/api/items?' + p)).json();
+    const { items } = await (await fetch(state.similarTo ? '/api/similar?id=' + state.similarTo : '/api/items?' + p)).json();
     $('grid').innerHTML = items.map(card).join('');
     $('empty').hidden = items.length > 0;
     const st = await (await fetch('/api/stats')).json();
-    $('stat').textContent = `${items.length} shown · ${st.items} tracked · ${st.verdicts} analyzed · ${new Date().toLocaleTimeString()}`;
+    $('stat').textContent = `${state.similarTo ? 'similar to #' + state.similarTo + ' · ' : ''}${items.length} shown · ${st.items} tracked · ${st.verdicts} analyzed · ${new Date().toLocaleTimeString()}`;
   }
-  for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location', 'analyzed', 'mySize']) $(k).addEventListener('change', load);
+  for (const k of ['search', 'sort', 'minScore', 'minBuy', 'maxPrice', 'location', 'analyzed', 'mySize', 'category', 'style', 'color', 'material']) $(k).addEventListener('change', () => { state.similarTo = undefined; load(); });
+  let qTimer; $('q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(() => { state.similarTo = undefined; load(); }, 350); });
+  async function loadTaxonomy() {
+    const t = await (await fetch('/api/taxonomy')).json();
+    for (const [g, id] of [['category', 'category'], ['style', 'style'], ['color', 'color'], ['material', 'material']]) {
+      const sel = $(id); const cur = sel.value;
+      sel.innerHTML = '<option value="">Any</option>' + (t[g] || []).map((r) => `<option value="${esc(r.label)}">${esc(r.label)} (${r.n})</option>`).join('');
+      sel.value = cur;
+    }
+    $('stat').title = `${t.embedded} listings embedded`;
+  }
+  window.showSimilar = (id) => { state.similarTo = id; load(); };
+  loadTaxonomy();
   loadSearches().then(load);
-  setInterval(() => { if ($('auto').checked) { loadSearches(); load(); } }, 45000);
+  setInterval(() => { if ($('auto').checked && !state.similarTo && !$('q').value) { loadSearches(); loadTaxonomy(); load(); } }, 45000);
 </script>
 </body>
 </html>

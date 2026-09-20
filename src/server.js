@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { formatLocation } from './geo.js';
 import { loadRules, fitsMySize } from './rules.js';
+import { Embedder, rankBySimilarity } from './embed.js';
+import { sellThrough } from './stats.js';
 import { existsSync } from 'node:fs';
 
 const UI_PATH = fileURLToPath(new URL('./ui.html', import.meta.url));
@@ -14,8 +16,16 @@ const UI_PATH = fileURLToPath(new URL('./ui.html', import.meta.url));
  * GET /api/searches     → saved searches with counts
  * GET /api/stats        → totals
  */
-export function createDashboard({ store, domain, logger, rules, password = process.env.DASHBOARD_PASSWORD }) {
+export function createDashboard({ store, domain, logger, rules, password = process.env.DASHBOARD_PASSWORD, embedder }) {
   rules ??= loadRules(existsSync('rules.json') ? 'rules.json' : undefined);
+  embedder ??= new Embedder({ logger });
+  let vecCache = { n: -1, rows: [] };
+  const vectors = () => { const n = store.embeddingCount(); if (n !== vecCache.n) vecCache = { n, rows: store.allEmbeddings() }; return vecCache.rows; };
+  const listOpts = (q) => {
+    const num = (k) => (q.get(k) === null || q.get(k) === '' ? undefined : Number(q.get(k)));
+    return { searchKey: q.get('search') || undefined, minScore: num('minScore'), minBuy: num('minBuy'), minPotential: num('minPotential'), analyzed: q.get('analyzed') === '1', maxPrice: num('maxPrice'), locationStatus: q.get('location') || undefined, category: q.get('category') || undefined, style: q.get('style') || undefined, color: q.get('color') || undefined, material: q.get('material') || undefined, gender: q.get('gender') || undefined, sort: q.get('sort') || 'newest', limit: Math.min(num('limit') ?? 120, 500), offset: num('offset') ?? 0 };
+  };
+  const decorate = (items) => items.map((it) => ({ ...it, locationText: formatLocation(it.location), messageUrl: it.sellerId ? `https://www.vinted.${domain}/member/${it.sellerId}` : undefined }));
   const ui = () => readFileSync(UI_PATH, 'utf8'); // re-read each request so edits show up without restart
   const json = (res, status, body) => {
     res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
@@ -35,24 +45,39 @@ export function createDashboard({ store, domain, logger, rules, password = proce
       }
       if (url.pathname === '/api/items') {
         const q = url.searchParams;
-        const num = (k) => (q.get(k) === null || q.get(k) === '' ? undefined : Number(q.get(k)));
+        const opts = listOpts(q);
         const mySize = q.get('mySize') === '1';
-        let items = store.list({
-          searchKey: q.get('search') || undefined,
-          minScore: num('minScore'),
-          minBuy: num('minBuy'),
-          minPotential: num('minPotential'),
-          analyzed: q.get('analyzed') === '1',
-          maxPrice: num('maxPrice'),
-          locationStatus: q.get('location') || undefined,
-          sort: q.get('sort') || 'newest',
-          limit: mySize ? 5000 : Math.min(num('limit') ?? 120, 500),
-          offset: num('offset') ?? 0,
-        });
-        if (mySize) items = items.filter((it) => fitsMySize(it, rules)).slice(0, Math.min(num('limit') ?? 120, 500));
-        items = items.map((it) => ({ ...it, locationText: formatLocation(it.location), messageUrl: it.sellerId ? `https://www.vinted.${domain}/member/${it.sellerId}` : undefined }));
-        return json(res, 200, { items });
+        const text = (q.get('q') || '').trim();
+        const wantLimit = opts.limit;
+        if (text || mySize) opts.limit = 5000;
+        let items;
+        if (text) {
+          // Semantic search: rank every embedded listing by CLIP similarity to the query, then apply the other filters.
+          return embedder.embedText(text).then((qv) => {
+            const ranked = rankBySimilarity(qv, vectors(), { limit: 400 });
+            const order = new Map(ranked.map((r, i) => [r.id, i]));
+            let rows = store.list({ ...opts, ids: ranked.map((r) => r.id), sort: 'newest', limit: 5000 });
+            if (mySize) rows = rows.filter((it) => fitsMySize(it, rules));
+            rows.sort((a, b) => order.get(a.id) - order.get(b.id));
+            json(res, 200, { items: decorate(rows.slice(0, wantLimit)), query: text });
+          }).catch((e) => json(res, 500, { error: e.message }));
+        }
+        items = store.list(opts);
+        if (mySize) items = items.filter((it) => fitsMySize(it, rules)).slice(0, wantLimit);
+        return json(res, 200, { items: decorate(items) });
       }
+      if (url.pathname === '/api/similar') {
+        const id = Number(url.searchParams.get('id'));
+        const rows = vectors();
+        const me = rows.find((r) => r.id === id);
+        if (!me) return json(res, 404, { error: 'no embedding for this listing yet' });
+        const ranked = rankBySimilarity(me.vec, rows, { limit: 60, exclude: id });
+        const order = new Map(ranked.map((r, i) => [r.id, i]));
+        const items = store.list({ ids: ranked.map((r) => r.id), limit: 100 }).sort((a, b) => order.get(a.id) - order.get(b.id));
+        return json(res, 200, { items: decorate(items).map((it) => ({ ...it, similarity: ranked.find((r) => r.id === it.id)?.score })) });
+      }
+      if (url.pathname === '/api/taxonomy') return json(res, 200, { ...store.taxonomyCounts(), embedded: store.embeddingCount() });
+      if (url.pathname === '/api/sellthrough') return json(res, 200, sellThrough(store.sellThroughRows(Number(url.searchParams.get('days') || 30)), { rules }));
       if (url.pathname === '/api/searches') return json(res, 200, { searches: store.searches() });
       if (url.pathname === '/api/stats') return json(res, 200, { items: store.count(), verdicts: store.verdictCount(), domain });
       json(res, 404, { error: 'not found' });

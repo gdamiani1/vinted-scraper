@@ -1,6 +1,7 @@
 import { sleep, jitter } from './util.js';
 import { scoreDeals } from './deals.js';
 import { evaluateListings } from './buyer.js';
+import { embedNewItems, broadRecheck } from './enrich.js';
 
 /** Stable key so the same saved search maps to the same rows in the store across restarts. */
 export function searchKey(search) {
@@ -19,7 +20,8 @@ export function searchKey(search) {
  * @param {object[]} opts.searches saved searches (FriendlyParams + optional name/pages/minScore)
  * @param {(event: object) => Promise<void>} opts.notify
  */
-export async function watch({ scraper, store, searches, notify, intervalSec = 120, pages = 1, minScore = 0, once = false, notifyFirstRun = false, near, ai, recheck = { everySec: 3600, minBuy: 50, limit: 60 }, signal, logger = scraper.logger }) {
+export async function watch({ scraper, store, searches, notify, intervalSec = 120, pages = 1, minScore = 0, once = false, notifyFirstRun = false, near, ai, recheck = { everySec: 3600, minBuy: 50, limit: 60 }, embedder, rules, broadRecheckAt = '02:30', signal, logger = scraper.logger }) {
+  let lastBroadDay = '';
   const state = new Map(searches.map((s) => [searchKey(s), { firstRun: true, failures: 0, disabled: false }]));
   let round = 0;
   let lastRecheck = Date.now(); // first recheck one interval in, so seeding is not delayed
@@ -76,6 +78,22 @@ export async function watch({ scraper, store, searches, notify, intervalSec = 12
           logger.warn(`[${key}] ${st.failures} consecutive failures; pausing ${pause}s`);
           await sleep(pause * 1000);
         }
+      }
+    }
+    // Local embeddings + labels for whatever arrived this round (a few hundred ms per listing).
+    if (embedder) {
+      try { const n = await embedNewItems({ store, embedder, limit: 300, concurrency: 3, logger }); if (n) logger.info(`[embed] labelled ${n} new listings`); }
+      catch (e) { logger.warn(`[embed] ${e.message}`); }
+    }
+    // Nightly broad status check for sell-through statistics.
+    if (broadRecheckAt && rules) {
+      const now = new Date();
+      const [hh, mm] = String(broadRecheckAt).split(':').map(Number);
+      const today = now.toDateString();
+      if (lastBroadDay !== today && (now.getHours() > hh || (now.getHours() === hh && now.getMinutes() >= mm))) {
+        lastBroadDay = today;
+        try { const r = await broadRecheck({ scraper, store, rules, limit: 1000, logger, signal }); logger.info(`[recheck:broad] ${r.checked} listings checked, ${r.gone} newly gone`); }
+        catch (e) { logger.warn(`[recheck:broad] ${e.message}`); }
       }
     }
     // Paper-trading loop: revisit strong buys and record whether they sold, got reserved or vanished.

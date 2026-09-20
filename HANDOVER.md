@@ -115,6 +115,16 @@ after one flip. Twenty subscribers at 25 EUR a month is 500 EUR. Two blockers to
 distributing a scraper commercially is a different legal posture from personal use, and
 DataDome escalates against tools rather than individuals.
 
+## 6b. Added 2026-09-20 evening: embeddings, search, sell-through
+
+- Local CLIP embeddings (`src/embed.js`, `src/enrich.js`) label every listing with category, style,
+  colour, material and gender; semantic search and "Similar" in the dashboard; `vinted embed`.
+- Nightly broad recheck (02:30) of recent luxury listings feeds `vinted stats` (`src/stats.js`):
+  sell-through by segment. This is stage 1 of trend detection; forecasting needs 6-8 weeks of rows.
+- Services are installed (`deploy/install-services.sh`): watcher, dashboard on 3211, daily hunt 07:30.
+- Known label biases to revisit after a week of data: style prompts are still coarse; check the
+  confusion between black/navy and leather/patent on a labelled sample.
+
 ## 7. Risks to keep visible
 
 - **Counterfeits.** The core risk of the entire thesis, currently unquantified. Step 4 measures it.
