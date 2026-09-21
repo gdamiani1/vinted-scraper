@@ -189,6 +189,16 @@ export class Store {
     } catch (e) { this.db.exec('ROLLBACK'); throw e; }
   }
 
+  /** Previously stored triage results (with the price they were judged at) for a set of ids. */
+  storedTriage(ids) {
+    const out = new Map();
+    for (let i = 0; i < ids.length; i += 500) {
+      const chunk = ids.slice(i, i + 500);
+      for (const r of this.db.prepare(`SELECT id, price, potential_json FROM items WHERE potential_json IS NOT NULL AND id IN (${chunk.map(() => '?').join(',')})`).all(...chunk)) out.set(r.id, { price: r.price, triage: JSON.parse(r.potential_json) });
+    }
+    return out;
+  }
+
   /** Triage picks above an upside threshold that have no verdict yet. */
   pendingPotential(minUpside = 0.5, limit = 1000) {
     return this.q.pending.all(minUpside, limit).map((r) => JSON.parse(r.json));

@@ -75,7 +75,7 @@ export function interpretTriage(answers, price) {
   const pWorth = a.worth_checking?.noul ?? 0;
   const pPack = a.is_packaging?.noul ?? 0;
   const pFake = a.replica_signal?.noul ?? 0;
-  const worth = pWorth >= 0.5 && pPack < 0.5 && pFake < 0.5 && (est === undefined || price === undefined || est > price);
+  const worth = pWorth >= 0.55 && pPack < 0.5 && pFake < 0.5 && (est === undefined || price === undefined || est > price);
   const reasons = [];
   if (pPack >= 0.5) reasons.push(`packaging/non-product (${Math.round(pPack * 100)}%)`);
   if (pFake >= 0.5) reasons.push(`replica wording (${Math.round(pFake * 100)}%)`);
@@ -129,7 +129,8 @@ export function createJevClient({ apiKey = process.env.TYPESAFE_API_KEY, model =
           const l = listings[next++];
           try {
             const state = listingState(l);
-            const first = await ask(state, gate);
+            const { description, ...gateState } = state; // the gate does not need the description: fewer tokens per listing
+            const first = await ask(gateState, gate);
             const t = interpretTriage(first.answers, l.price);
             if (t.worth_checking) { // only picks pay for the category list
               const second = await ask(state, labels).catch(() => undefined);

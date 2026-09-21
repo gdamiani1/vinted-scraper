@@ -58,6 +58,7 @@ Filters:
   --strict-location        with --near: also drop sellers who hide their city
   --seller-country AT      keep only listings from sellers in that country (search, deals, hunt, watch)
   --country-pool <n>       hunt: how many top candidates to country-check before photo checks (default 10× --ai-max)
+  --retriage               hunt: re-judge listings already triaged in earlier runs (default: reuse unless the price changed)
   --pages <n> (max 10)     --limit <n>
 
 AI buying assistant (OpenRouter, default model qwen/qwen3.8-flash; needs OPENROUTER_API_KEY):
@@ -114,7 +115,7 @@ const options = {
   near: { type: 'string' }, radius: { type: 'string' }, 'seller-country': { type: 'string' }, 'strict-location': { type: 'boolean' }, port: { type: 'string' },
   host: { type: 'string' }, password: { type: 'string' },
   'telegram-token': { type: 'string' }, 'telegram-chat': { type: 'string' }, 'telegram-min-score': { type: 'string' },
-  ai: { type: 'boolean' }, force: { type: 'boolean' }, 'my-size': { type: 'boolean' }, broad: { type: 'boolean' }, days: { type: 'string' }, relabel: { type: 'boolean' }, recolor: { type: 'boolean' }, group: { type: 'string' }, commentary: { type: 'boolean' }, 'country-pool': { type: 'string' }, tier: { type: 'string' }, 'from-db': { type: 'boolean' }, 'min-upside': { type: 'string' }, 'analyze-picks': { type: 'boolean' }, triage: { type: 'boolean' }, 'no-triage': { type: 'boolean' }, 'ai-model': { type: 'string' }, 'ai-max': { type: 'string' }, rules: { type: 'string' }, 'min-buy': { type: 'string' }, 'all-brands': { type: 'boolean' },
+  ai: { type: 'boolean' }, force: { type: 'boolean' }, 'my-size': { type: 'boolean' }, broad: { type: 'boolean' }, days: { type: 'string' }, relabel: { type: 'boolean' }, recolor: { type: 'boolean' }, retriage: { type: 'boolean' }, group: { type: 'string' }, commentary: { type: 'boolean' }, 'country-pool': { type: 'string' }, tier: { type: 'string' }, 'from-db': { type: 'boolean' }, 'min-upside': { type: 'string' }, 'analyze-picks': { type: 'boolean' }, triage: { type: 'boolean' }, 'no-triage': { type: 'boolean' }, 'ai-model': { type: 'string' }, 'ai-max': { type: 'string' }, rules: { type: 'string' }, 'min-buy': { type: 'string' }, 'all-brands': { type: 'boolean' },
 };
 
 function fail(msg, code = 1) {
@@ -290,7 +291,7 @@ async function main() {
       let items = [...all.values()];
       const { newItems } = store.recordSeen(v.name ?? `hunt:${tierSel}`, items);
       logger.info(`${items.length} listings across ${brands.length} brands (${newItems.length} new); triage + photo checks on the best ${aiMax}`);
-      items = await evaluateListings(items, { scraper, store, vision: vision(), rules, max: aiMax, minUpside, luxuryOnly: !v['all-brands'], triage: !v['no-triage'], concurrency, prefilter: countryPrefilter(sellerCountry), prefilterPool: intOpt(v['country-pool'], 'country-pool'), triager: jev });
+      items = await evaluateListings(items, { scraper, store, vision: vision(), rules, max: aiMax, minUpside, luxuryOnly: !v['all-brands'], triage: !v['no-triage'], concurrency, prefilter: countryPrefilter(sellerCountry), prefilterPool: intOpt(v['country-pool'], 'country-pool'), triager: jev, retriage: v.retriage });
       items = items.filter((i) => i.buy).sort((a, b) => b.buy.score - a.buy.score);
       store.setBuyScores(items);
       if (minBuy !== undefined) items = items.filter((i) => i.buy.score >= minBuy);

@@ -45,3 +45,14 @@ test('Store persists triage potential and lists pending picks by upside', () => 
   assert.equal(store.list({ sort: 'potential', limit: 1 })[0].id, 1);
   store.close();
 });
+
+test('storedTriage returns earlier triage results with the price they were judged at', () => {
+  const store = new Store(':memory:');
+  store.recordSeen('h', [mk(1, 100), mk(2, 50)]);
+  store.setTriage([{ ...mk(1, 100), triage: { worth_checking: true, est_resale_eur: 300, reason: 'x' } }]);
+  const s = store.storedTriage([1, 2, 3]);
+  assert.equal(s.size, 1);
+  assert.equal(s.get(1).price, 100);
+  assert.equal(s.get(1).triage.est_resale_eur, 300);
+  store.close();
+});

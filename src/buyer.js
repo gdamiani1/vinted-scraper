@@ -21,14 +21,18 @@ export function isCandidate(item, rules, { luxuryOnly = true } = {}) {
  *
  * @returns all items; evaluated ones carry `detail`, `verdict`, `buy` (and `triage` when used).
  */
-export async function evaluateListings(items, { scraper, store, vision, rules, max = 30, minUpside, luxuryOnly = true, triage = false, concurrency = 4, comparablesFor, prefilter, prefilterPool, triager, logger = scraper.logger } = {}) {
+export async function evaluateListings(items, { scraper, store, vision, rules, max = 30, minUpside, luxuryOnly = true, triage = false, concurrency = 4, comparablesFor, prefilter, prefilterPool, triager, retriage = false, logger = scraper.logger } = {}) {
   const eligible = items.filter((it) => isCandidate(it, rules, { luxuryOnly }));
   logger.info(`[ai] ${eligible.length} of ${items.length} listings pass the cheap filters`);
   const out = new Map(items.map((it) => [it.id, it]));
   let ranked;
   if (triage && eligible.length) {
-    const picks = await (triager ?? vision).triage(eligible);
-    if (triager) logger.info(`[ai] triage by ${triager.kind ?? 'model'}`);
+    // Reuse stored triage: a listing judged once is not sent to a model again unless its price changed.
+    const stored = store?.storedTriage ? store.storedTriage(eligible.map((it) => it.id)) : new Map();
+    const fresh = eligible.filter((it) => { const s = stored.get(it.id); return retriage || !s || s.price !== it.price; });
+    const picks = fresh.length ? await (triager ?? vision).triage(fresh) : new Map();
+    for (const it of eligible) if (!picks.has(it.id) && stored.has(it.id)) picks.set(it.id, stored.get(it.id).triage);
+    logger.info(`[ai] triage by ${triager?.kind ?? 'vision model'}: ${fresh.length} new, ${eligible.length - fresh.length} reused from earlier runs`);
     const triaged = eligible.map((it) => ({ ...it, triage: picks.get(it.id) })).filter((it) => it.triage);
     if (store) for (const it of triaged) if (it.triage.category || it.triage.gender) store.setTextLabels?.(it.id, it.triage);
     store?.setTriage?.(triaged);
