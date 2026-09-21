@@ -223,7 +223,18 @@ bash deploy/install-services.sh          # install and start; logs in ~/Library/
 bash deploy/install-services.sh uninstall
 ```
 
-The dashboard password lives in `.env` as `DASHBOARD_PASSWORD` (any username). To reach it from a phone,
+The dashboard password lives in `.env` as `DASHBOARD_PASSWORD` (any username).
+
+**Permanent public address (Cloudflare named tunnel).** Free quick tunnels (`cloudflared tunnel --url`)
+get revoked after a few hours. For a fixed address on a domain in your Cloudflare account:
+
+```bash
+cloudflared tunnel login                        # once; opens the browser, pick the domain
+bash deploy/setup-tunnel.sh vinted.yourdomain.com
+```
+
+This creates the tunnel, points the hostname at the dashboard, and installs it as a login service
+that reconnects on its own (`com.arcstore.vinted.tunnel`, logs in `~/Library/Logs/vinted/tunnel.log`). To reach it from a phone,
 install Tailscale on the Mac and the phone, sign in with the same account, and open
 `http://<mac-name>:3210`; nothing is exposed to the public internet.
 
