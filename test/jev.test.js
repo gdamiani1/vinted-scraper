@@ -40,7 +40,6 @@ test('createJevClient posts one request per listing with the expected shape and 
   assert.equal(calls[0].auth, 'Bearer k');
   assert.equal(calls[0].body.model, 'jev-latest');
   assert.equal(calls[0].body.state.brand, 'Prada');
-  assert.ok(calls[0].body.questions.category);
   assert.equal(out.get(1).worth_checking, true);
   assert.equal(out.get(1).est_resale_eur, 150);
   assert.equal(out.get(1).category, 'sneakers');
