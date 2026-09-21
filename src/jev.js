@@ -15,7 +15,19 @@ export const RESALE_BANDS = { under_50: 30, '50_100': 75, '100_200': 150, '200_5
 const CATEGORY_CRITERIA = Object.fromEntries(Object.keys(TAXONOMY.category).map((k) => [k.replace(/[^a-z0-9]+/g, '_'), `The item is a ${k}`]));
 const CATEGORY_KEYS = Object.fromEntries(Object.keys(TAXONOMY.category).map((k) => [k.replace(/[^a-z0-9]+/g, '_'), k]));
 
-/** The question set for one listing. Kept identical across calls so Jev's answers stay comparable. */
+/** Stage 1 (every listing, small): is it worth a look at all, and what would it resell for. */
+export function gateQuestions() {
+  const q = triageQuestions();
+  return { worth_checking: q.worth_checking, is_packaging: q.is_packaging, replica_signal: q.replica_signal, resale_band: q.resale_band };
+}
+
+/** Stage 2 (picks only, larger because of the category list): what it is and who it is for. */
+export function labelQuestions() {
+  const q = triageQuestions();
+  return { category: q.category, gender: q.gender };
+}
+
+/** The full question set. Kept identical across calls so Jev's answers stay comparable. */
 export function triageQuestions() {
   return {
     worth_checking: {
@@ -107,7 +119,8 @@ export function createJevClient({ apiKey = process.env.TYPESAFE_API_KEY, model =
     /** Same contract as the vision client's triage: Map<id, { worth_checking, est_resale_eur, reason, ... }>. */
     async triage(listings) {
       const out = new Map();
-      const questions = triageQuestions();
+      const gate = gateQuestions();
+      const labels = labelQuestions();
       let next = 0;
       let failed = 0;
       const t0 = Date.now();
@@ -115,8 +128,14 @@ export function createJevClient({ apiKey = process.env.TYPESAFE_API_KEY, model =
         while (next < listings.length) {
           const l = listings[next++];
           try {
-            const data = await ask(listingState(l), questions);
-            out.set(l.id, interpretTriage(data.answers, l.price));
+            const state = listingState(l);
+            const first = await ask(state, gate);
+            const t = interpretTriage(first.answers, l.price);
+            if (t.worth_checking) { // only picks pay for the category list
+              const second = await ask(state, labels).catch(() => undefined);
+              if (second) Object.assign(t, interpretTriage({ ...first.answers, ...second.answers }, l.price));
+            }
+            out.set(l.id, t);
           } catch (e) {
             failed++;
             if (e.code === 'NO_API_KEY') throw e;

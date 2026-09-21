@@ -34,7 +34,7 @@ Report:
 - photo_quality: stock_images if the photos look like brand/retailer product shots rather than the seller's own item.
 - resale_estimate_eur: a realistic low/high range for this exact item in this condition on the European second-hand market, or null if you cannot say.
 - red_flags: anything a buyer should worry about (price far below market, "read description", reserved/bundle wording, mismatched size, suspicious seller claims).
-- summary: one sentence a human buyer reads first.
+- summary: one sentence a human buyer reads first. Always write summary, notes, observations and red_flags in English, whatever language the listing uses.
 - confidence 0-1 in your overall assessment.
 Respond with a single JSON object only (no schema, no markdown) with exactly these keys:
 gender (men, women, unisex, kids — judge from the cut, size system and category, not the seller), item_type (one of: bag, small_leather_goods, shoes, outerwear, knitwear, dress, skirt, trousers, top, accessory, jewellery, other — boots/sneakers/heels are shoes; wallets/pouches/belts are small_leather_goods; jackets/coats are outerwear), brand_seen, line_or_model, condition_grade (new, excellent, very_good, good, fair, poor), condition_notes[], authenticity_risk (low, medium, high), authenticity_observations[], completeness[] (box, dust_bag, receipt, authenticity_card, tags, extra_strap, none_visible), photo_quality (real_photos, stock_images, mixed, too_few_or_blurry), size_visible, resale_estimate_eur {low, high} or null, red_flags[], summary, confidence (0-1).`;
