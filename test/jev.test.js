@@ -33,7 +33,7 @@ test('createJevClient posts one request per listing with the expected shape and 
   };
   const jev = createJevClient({ apiKey: 'k', fetchImpl });
   const out = await jev.triage([{ id: 1, brand: 'Prada', title: 'Prada sneakers', price: 60 }, { id: 2, brand: 'Loewe', title: 'Loewe bag', price: 400 }]);
-  assert.equal(calls.length, 4); // gate + labels for the pick, gate + labels for the second (gate says worth, price check happens after)
+  assert.equal(calls.length, 3); // gate + labels for the pick, gate only for the overpriced one
   assert.equal(calls[0].url, 'https://api.typesafe.ai/v1/systemone');
   assert.ok(!calls[0].body.questions.category && calls[1].body.questions.category); // category only in the second stage
   assert.equal(calls[0].auth, 'Bearer k');
