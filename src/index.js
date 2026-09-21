@@ -15,3 +15,4 @@ export { haversineKm, Geocoder, locateItems, resolveNear, parseNear, formatLocat
 export { createVisionClient, analyzeListing, VERDICT_SCHEMA } from './vision.js';
 export { loadRules, buyScore, brandTier, parseSize, sizeDesirability, fitsMySize, genderOf, listingAgeDays } from './rules.js';
 export { evaluateListings, prescore, isCandidate } from './buyer.js';
+export { createJevClient, triageQuestions, interpretTriage, listingState, RESALE_BANDS } from './jev.js';

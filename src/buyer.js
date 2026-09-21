@@ -21,14 +21,16 @@ export function isCandidate(item, rules, { luxuryOnly = true } = {}) {
  *
  * @returns all items; evaluated ones carry `detail`, `verdict`, `buy` (and `triage` when used).
  */
-export async function evaluateListings(items, { scraper, store, vision, rules, max = 30, minUpside, luxuryOnly = true, triage = false, concurrency = 4, comparablesFor, prefilter, prefilterPool, logger = scraper.logger } = {}) {
+export async function evaluateListings(items, { scraper, store, vision, rules, max = 30, minUpside, luxuryOnly = true, triage = false, concurrency = 4, comparablesFor, prefilter, prefilterPool, triager, logger = scraper.logger } = {}) {
   const eligible = items.filter((it) => isCandidate(it, rules, { luxuryOnly }));
   logger.info(`[ai] ${eligible.length} of ${items.length} listings pass the cheap filters`);
   const out = new Map(items.map((it) => [it.id, it]));
   let ranked;
   if (triage && eligible.length) {
-    const picks = await vision.triage(eligible);
+    const picks = await (triager ?? vision).triage(eligible);
+    if (triager) logger.info(`[ai] triage by ${triager.kind ?? 'model'}`);
     const triaged = eligible.map((it) => ({ ...it, triage: picks.get(it.id) })).filter((it) => it.triage);
+    if (store) for (const it of triaged) if (it.triage.category || it.triage.gender) store.setTextLabels?.(it.id, it.triage);
     store?.setTriage?.(triaged);
     const upside = (it) => (it.triage.est_resale_eur && it.price ? (it.triage.est_resale_eur - it.price) / it.price : 0);
     const chosen = triaged.filter((it) => it.triage.worth_checking && (minUpside === undefined || upside(it) >= minUpside));

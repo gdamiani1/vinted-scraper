@@ -131,6 +131,15 @@ in the last 14 days (up to 1,000 a night), recording sold / reserved / removed. 
 that into sell-through at 3, 7 and 14 days and median days-to-sell by tier, category, style, price band
 and brand (also `/api/sellthrough`). Give it two to four weeks before reading trends into it.
 
+### Jev (TypeSafe AI) for the decisions that don't need eyes
+
+[Jev](https://typesafe.ai) answers typed questions about a block of state with calibrated probabilities
+instead of prose: ~100 ms per call, $0.042 per million input tokens, output free, text only. With
+`TYPESAFE_API_KEY` in `.env` the scraper uses it for the **text triage** (is this a real, resellable
+product; packaging or replica wording; category; gender; resale band) in one call per listing, in
+parallel, instead of the batched LLM triage, and applies its category/gender when the image model is
+unsure. Photo verdicts stay with the vision model, which Jev cannot do. Without the key nothing changes.
+
 ### Location filter
 
 Vinted has no distance filter of its own, so `--near` works after the fact: each listing's seller profile

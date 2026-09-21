@@ -223,9 +223,20 @@ export class Store {
     if (labels) this.applyLabels(itemId, labels);
   }
 
+  /** Text-based category/gender (Jev). Applied over the image label when the image model was unsure. */
+  setTextLabels(itemId, t) {
+    const row = this.db.prepare('SELECT labels FROM items WHERE id = ?').get(itemId);
+    const labels = row?.labels ? JSON.parse(row.labels) : {};
+    labels.textCategory = t.category ?? null; labels.textCategoryConfidence = t.categoryConfidence ?? null;
+    labels.textGender = t.gender ?? null; labels.textGenderConfidence = t.genderConfidence ?? null;
+    this.applyLabels(itemId, labels);
+  }
+
   /** Writes automatic labels, keeping any human tags on top and remembering the automatic guess for calibration. */
   applyLabels(itemId, labels) {
     const human = this.humanLabels(itemId);
+    if (labels.textCategory && (labels.textCategoryConfidence ?? 0) >= 0.7 && (labels.categoryConfidence ?? 1) < 0.45) labels = { ...labels, category: labels.textCategory };
+    if (labels.textGender && (labels.textGenderConfidence ?? 0) >= 0.7 && !labels.gender) labels = { ...labels, gender: labels.textGender };
     const merged = { ...labels, autoCategory: labels.category ?? null, autoStyle: labels.style ?? null, autoColor: labels.color ?? null, autoMaterial: labels.material ?? null, autoGender: labels.gender ?? null, human: Object.keys(human).length ? human : undefined };
     for (const [f, v] of Object.entries(human)) merged[f] = v;
     this.q.setLabels.run(merged.category ?? null, merged.style ?? null, merged.color ?? null, merged.material ?? null, merged.gender ?? null, JSON.stringify(merged), itemId);

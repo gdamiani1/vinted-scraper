@@ -60,7 +60,7 @@ export async function watch({ scraper, store, searches, notify, intervalSec = 12
         let drops = decorate(priceDrops);
         if (ai) {
           // Eyes on the new arrivals only; alerts are gated by buy score instead of deal score.
-          fresh = await evaluateListings(fresh, { scraper, store, vision: ai.vision, rules: ai.rules, max: ai.max, luxuryOnly: ai.luxuryOnly, triage: fresh.length > 8, concurrency: 4, logger });
+          fresh = await evaluateListings(fresh, { scraper, store, vision: ai.vision, rules: ai.rules, max: ai.max, luxuryOnly: ai.luxuryOnly, triage: fresh.length > 8 || Boolean(ai.triager), concurrency: 4, triager: ai.triager, logger });
           store.setBuyScores(fresh.filter((i) => i.buy));
           fresh = fresh.filter((i) => i.buy && i.buy.score >= ai.minBuy).sort((a, b) => b.buy.score - a.buy.score);
           drops = drops.filter((i) => store.list({ limit: 1, minBuy: ai.minBuy }).some((x) => x.id === i.id) || !i.buy);

@@ -15,6 +15,7 @@ import { evaluateListings } from '../src/buyer.js';
 import { Embedder, rankBySimilarity, MODEL_ID } from '../src/embed.js';
 import { sellThrough } from '../src/stats.js';
 import { buildSeries, detectTrends, summarize } from '../src/trends.js';
+import { createJevClient } from '../src/jev.js';
 import { embedNewItems, broadRecheck, relabelAll, recolorAll } from '../src/enrich.js';
 import { formatTable, writeOutput } from '../src/export.js';
 import { CONDITIONS, COLORS, ORDERS } from '../src/lookup.js';
@@ -199,6 +200,8 @@ async function main() {
   const aiMax = intOpt(v['ai-max'], 'ai-max') ?? 30;
   const minBuy = numOpt(v['min-buy'], 'min-buy');
   const vision = (model) => createVisionClient({ model: model ?? v['ai-model'], logger, pricePerMillion: { prompt: 0.15, completion: 0.47 } });
+  const jev = createJevClient({ logger }); // undefined without TYPESAFE_API_KEY → text triage falls back to the vision model
+  if (jev) logger.debug('jev available: text triage and text category/gender via TypeSafe');
   const sellerCountry = v['seller-country'] ?? process.env.VINTED_SELLER_COUNTRY;
   const nearFor = async (input) => (input ? scraper.near(input, { radiusKm: radius, strict: Boolean(v['strict-location']) }) : sellerCountry ? countryFilter(sellerCountry) : undefined);
   const countryPrefilter = (code) => (code ? async (items) => scraper.locate(items, countryFilter(code)) : undefined);
@@ -234,7 +237,7 @@ async function main() {
       if (near && columns.includes('location')) columns[columns.indexOf('location')] = 'locationText';
       if (v.db) store.setScores(items.filter((i) => i.deal));
       if (v.ai) {
-        items = await evaluateListings(items, { scraper, store, vision: vision(), rules, max: aiMax, luxuryOnly: !v['all-brands'], triage: v.triage, concurrency });
+        items = await evaluateListings(items, { scraper, store, vision: vision(), rules, max: aiMax, luxuryOnly: !v['all-brands'], triage: v.triage, concurrency, triager: jev });
         items = items.filter((i) => i.buy).sort((a, b) => b.buy.score - a.buy.score);
         if (minBuy !== undefined) items = items.filter((i) => i.buy.score >= minBuy);
         if (v.db) store.setBuyScores(items);
@@ -287,7 +290,7 @@ async function main() {
       let items = [...all.values()];
       const { newItems } = store.recordSeen(v.name ?? `hunt:${tierSel}`, items);
       logger.info(`${items.length} listings across ${brands.length} brands (${newItems.length} new); triage + photo checks on the best ${aiMax}`);
-      items = await evaluateListings(items, { scraper, store, vision: vision(), rules, max: aiMax, minUpside, luxuryOnly: !v['all-brands'], triage: !v['no-triage'], concurrency, prefilter: countryPrefilter(sellerCountry), prefilterPool: intOpt(v['country-pool'], 'country-pool') });
+      items = await evaluateListings(items, { scraper, store, vision: vision(), rules, max: aiMax, minUpside, luxuryOnly: !v['all-brands'], triage: !v['no-triage'], concurrency, prefilter: countryPrefilter(sellerCountry), prefilterPool: intOpt(v['country-pool'], 'country-pool'), triager: jev });
       items = items.filter((i) => i.buy).sort((a, b) => b.buy.score - a.buy.score);
       store.setBuyScores(items);
       if (minBuy !== undefined) items = items.filter((i) => i.buy.score >= minBuy);
@@ -449,7 +452,7 @@ async function main() {
       if (telegram.token && telegram.chatId) logger.info(`telegram alerts on for deals scoring ≥ ${telegramMinScore}`);
       const aiCfg = config.ai ?? {};
       const aiOn = v.ai ?? aiCfg.enabled ?? false;
-      const ai = aiOn ? { vision: vision(aiCfg.model), rules, max: intOpt(v['ai-max'], 'ai-max') ?? aiCfg.maxPerRun ?? 30, luxuryOnly: !(v['all-brands'] ?? aiCfg.allBrands), minBuy: minBuy ?? aiCfg.minBuy ?? 50 } : undefined;
+      const ai = aiOn ? { vision: vision(aiCfg.model), rules, max: intOpt(v['ai-max'], 'ai-max') ?? aiCfg.maxPerRun ?? 30, luxuryOnly: !(v['all-brands'] ?? aiCfg.allBrands), minBuy: minBuy ?? aiCfg.minBuy ?? 50, triager: jev } : undefined;
       if (ai) logger.info(`ai buying assistant on: ${ai.vision.model}, up to ${ai.max} listings per run, alerts at buy ≥ ${ai.minBuy}`);
       const notify = createNotifier({ webhook: v.webhook ?? config.webhook, mac: v.mac ?? config.mac, telegram, telegramMinScore: ai ? 0 : telegramMinScore, logger });
       const ac = new AbortController();
@@ -515,7 +518,7 @@ async function main() {
         }
         let items = [...all.values()];
         store.recordSeen('hunt:all', items);
-        items = await evaluateListings(items, { scraper, store, vision: vision(config.ai?.model), rules, max: config.huntMax ?? 120, minUpside: config.huntMinUpside ?? 1, luxuryOnly: true, triage: true, concurrency: 6, prefilter: countryPrefilter(config.sellerCountry), prefilterPool: config.huntCountryPool ?? 1500 });
+        items = await evaluateListings(items, { scraper, store, vision: vision(config.ai?.model), rules, max: config.huntMax ?? 120, minUpside: config.huntMinUpside ?? 1, luxuryOnly: true, triage: true, concurrency: 6, prefilter: countryPrefilter(config.sellerCountry), prefilterPool: config.huntCountryPool ?? 1500, triager: jev });
         const strong = items.filter((i) => i.buy && i.buy.score >= (config.ai?.minBuy ?? 50)).sort((a, b) => b.buy.score - a.buy.score);
         store.setBuyScores(items.filter((i) => i.buy));
         logger.info(`[hunt] done: ${strong.length} strong buys`);
@@ -533,7 +536,7 @@ async function main() {
       if (process.env.HUNT_ON_START === '1') runHunt().catch((e) => logger.error(`[hunt] ${e.message}`));
       const aiCfg = config.ai ?? {};
       const aiOn = aiCfg.enabled && (process.env.OPENROUTER_API_KEY || process.env.VISION_API_KEY);
-      const ai = aiOn ? { vision: vision(aiCfg.model), rules, max: aiCfg.maxPerRun ?? 30, luxuryOnly: !aiCfg.allBrands, minBuy: aiCfg.minBuy ?? 50 } : undefined;
+      const ai = aiOn ? { vision: vision(aiCfg.model), rules, max: aiCfg.maxPerRun ?? 30, luxuryOnly: !aiCfg.allBrands, minBuy: aiCfg.minBuy ?? 50, triager: jev } : undefined;
       const near = config.near ? await scraper.near(config.near, { radiusKm: config.radiusKm ?? 50, strict: config.strictLocation ?? false }).catch((e) => { logger.warn(`location filter off: ${e.message}`); return undefined; }) : undefined;
       const ac = new AbortController();
       for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => { logger.info('stopping…'); ac.abort(); server.close(); setTimeout(() => process.exit(0), 2000).unref(); });
