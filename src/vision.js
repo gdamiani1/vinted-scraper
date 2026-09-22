@@ -115,8 +115,11 @@ export function createVisionClient({
 } = {}) {
   if (!apiKey) throw new VintedError('No vision API key. Set OPENROUTER_API_KEY (or VISION_API_KEY with VISION_BASE_URL).', { code: 'NO_API_KEY' });
   const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
+  const demoted = new Map(); // model → timestamp until which we skip it (sticky fallback after repeated 429s)
+  const pickModel = (wanted) => { const chain = [model, ...fallbackModels]; const start = Math.max(0, chain.indexOf(wanted)); return chain.slice(start).find((m) => (demoted.get(m) ?? 0) < Date.now()) ?? wanted; };
 
   async function request(body, { timeout = timeoutMs, attempt = 0 } = {}) {
+    if (attempt === 0) { const m = pickModel(body.model); if (m !== body.model) body = { ...body, model: m }; }
     const res = await fetchImpl(url, {
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', 'http-referer': 'https://github.com/vinted-scraper', 'x-title': 'vinted-scraper' },
@@ -135,7 +138,8 @@ export function createVisionClient({
       const chain = [model, ...fallbackModels];
       const next = chain[chain.indexOf(body.model) + 1];
       if (next) {
-        logger?.warn(`${body.model} keeps returning ${res.status}; falling back to ${next}`);
+        demoted.set(body.model, Date.now() + 10 * 60 * 1000);
+        logger?.warn(`${body.model} keeps returning ${res.status}; falling back to ${next} for the next 10 minutes`);
         return request({ ...body, model: next }, { timeout, attempt: 0 });
       }
     }

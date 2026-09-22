@@ -127,4 +127,7 @@ test('createVisionClient falls back to the next model when the primary stays rat
   assert.equal(seen[seen.length - 1], 'secondary');
   assert.equal(out.verdict.item_type, 'shoes');
   assert.equal(out.model, 'secondary');
+  const before = seen.length;
+  await client.analyze(listing); // sticky: the second listing goes straight to the fallback
+  assert.deepEqual(seen.slice(before), ['secondary']);
 });
