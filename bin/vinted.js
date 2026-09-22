@@ -264,7 +264,7 @@ async function main() {
       const minUpside = numOpt(v['min-upside'], 'min-upside') ?? 0.5;
       if (v['analyze-picks']) {
         // Second pass: photo-check stored triage picks that have no verdict yet.
-        let picks = store.pendingPotential(minUpside, aiMax);
+        let picks = store.pendingPotential(minUpside, sellerCountry ? (intOpt(v['country-pool'], 'country-pool') ?? aiMax * 10) : aiMax); // with a country filter, pull a wide pool: most picks are foreign
         logger.info(`${picks.length} stored picks with upside ≥ ${Math.round(minUpside * 100)}% await photo checks`);
         picks = await evaluateListings(picks, { scraper, store, vision: vision(), rules, max: aiMax, luxuryOnly: !v['all-brands'], triage: false, concurrency, prefilter: countryPrefilter(sellerCountry), prefilterPool: intOpt(v['country-pool'], 'country-pool') });
         picks = picks.filter((i) => i.buy).sort((a, b) => b.buy.score - a.buy.score);
