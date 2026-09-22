@@ -115,13 +115,23 @@ export function createVisionClient({
   if (!apiKey) throw new VintedError('No vision API key. Set OPENROUTER_API_KEY (or VISION_API_KEY with VISION_BASE_URL).', { code: 'NO_API_KEY' });
   const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
 
-  async function request(body, { timeout = timeoutMs } = {}) {
+  async function request(body, { timeout = timeoutMs, attempt = 0 } = {}) {
     const res = await fetchImpl(url, {
       method: 'POST',
       headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json', 'http-referer': 'https://github.com/vinted-scraper', 'x-title': 'vinted-scraper' },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(timeout),
     });
+    if (res.status === 429 || res.status >= 500) {
+      // Provider rate limits come and go within seconds: wait and retry before giving up on a listing.
+      if (attempt < 4) {
+        const wait = Math.round(3000 * 2 ** attempt * (0.7 + Math.random() * 0.6));
+        logger?.debug(`vision API ${res.status}; retry ${attempt + 1} in ${wait} ms`);
+        await res.text().catch(() => {});
+        await new Promise((r) => setTimeout(r, wait));
+        return request(body, { timeout, attempt: attempt + 1 });
+      }
+    }
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new VintedError(`Vision API ${res.status}: ${text.slice(0, 300)}`, { code: res.status === 401 ? 'NO_API_KEY' : 'VISION', status: res.status });

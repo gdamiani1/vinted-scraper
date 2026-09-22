@@ -100,3 +100,16 @@ test('normalizeVerdict maps loose item types and condition labels to the canonic
   assert.equal(n.condition_grade, 'excellent');
   assert.equal(n.authenticity_risk, 'low');
 });
+
+test('createVisionClient retries a 429 from the provider and then succeeds', async () => {
+  let n = 0;
+  const fetchImpl = async () => {
+    n++;
+    if (n === 1) return { ok: false, status: 429, text: async () => 'rate limited' };
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"item_type":"bag","authenticity_risk":"low","confidence":0.8}' }, finish_reason: 'stop' }], usage: {} }) };
+  };
+  const client = createVisionClient({ apiKey: 'k', fetchImpl });
+  const out = await client.analyze(listing);
+  assert.equal(n, 2);
+  assert.equal(out.verdict.item_type, 'bag');
+});
