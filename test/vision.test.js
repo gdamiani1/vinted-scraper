@@ -113,3 +113,18 @@ test('createVisionClient retries a 429 from the provider and then succeeds', asy
   assert.equal(n, 2);
   assert.equal(out.verdict.item_type, 'bag');
 });
+
+test('createVisionClient falls back to the next model when the primary stays rate-limited', async () => {
+  const seen = [];
+  const fetchImpl = async (url, init) => {
+    const body = JSON.parse(init.body); seen.push(body.model);
+    if (body.model === 'primary') return { ok: false, status: 429, text: async () => 'limited' };
+    return { ok: true, status: 200, json: async () => ({ model: body.model, choices: [{ message: { content: '{"item_type":"shoes","authenticity_risk":"low","confidence":0.7}' }, finish_reason: 'stop' }], usage: {} }) };
+  };
+  const client = createVisionClient({ apiKey: 'k', model: 'primary', fallbackModels: ['secondary'], fetchImpl });
+  const out = await client.analyze(listing);
+  assert.equal(seen.filter((m) => m === 'primary').length, 4); // 1 + 3 retries
+  assert.equal(seen[seen.length - 1], 'secondary');
+  assert.equal(out.verdict.item_type, 'shoes');
+  assert.equal(out.model, 'secondary');
+});

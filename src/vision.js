@@ -106,6 +106,7 @@ export function createVisionClient({
   baseUrl = process.env.VISION_BASE_URL ?? 'https://openrouter.ai/api/v1',
   apiKey = process.env.VISION_API_KEY ?? process.env.OPENROUTER_API_KEY,
   model = process.env.VISION_MODEL ?? 'qwen/qwen3.8-flash',
+  fallbackModels = (process.env.VISION_FALLBACKS ?? 'qwen/qwen3.7-plus,qwen/qwen3-vl-235b-a22b-instruct').split(',').map((s) => s.trim()).filter(Boolean),
   maxPhotos = 6,
   timeoutMs = 90000,
   pricePerMillion,
@@ -123,13 +124,19 @@ export function createVisionClient({
       signal: AbortSignal.timeout(timeout),
     });
     if (res.status === 429 || res.status >= 500) {
-      // Provider rate limits come and go within seconds: wait and retry before giving up on a listing.
-      if (attempt < 4) {
-        const wait = Math.round(3000 * 2 ** attempt * (0.7 + Math.random() * 0.6));
-        logger?.debug(`vision API ${res.status}; retry ${attempt + 1} in ${wait} ms`);
-        await res.text().catch(() => {});
+      // Provider rate limits come and go within seconds: wait and retry, then hand over to the next model.
+      await res.text().catch(() => {});
+      if (attempt < 3) {
+        const wait = Math.round(2500 * 2 ** attempt * (0.7 + Math.random() * 0.6));
+        logger?.debug(`vision API ${res.status} on ${body.model}; retry ${attempt + 1} in ${wait} ms`);
         await new Promise((r) => setTimeout(r, wait));
         return request(body, { timeout, attempt: attempt + 1 });
+      }
+      const chain = [model, ...fallbackModels];
+      const next = chain[chain.indexOf(body.model) + 1];
+      if (next) {
+        logger?.warn(`${body.model} keeps returning ${res.status}; falling back to ${next}`);
+        return request({ ...body, model: next }, { timeout, attempt: 0 });
       }
     }
     if (!res.ok) {
